@@ -1,0 +1,67 @@
+# Google Maps Reviews Scraper Configuration
+
+# URL to scrape
+url: "https://maps.google.com/?cid=2321544034470404611&g_mp=Cilnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaE5lYXJieRACGAQgAA&hl=en"
+
+# Scraper settings
+headless: true # Run Chrome in headless mode
+sort_by: "newest" # Options: "newest", "highest", "lowest", "relevance"
+stop_on_match: false # Stop when first already-seen review is encountered
+overwrite_existing: true # Whether to overwrite existing reviews or append
+
+# MongoDB settings
+use_mongodb: false # Whether to use MongoDB for storage
+# mongodb:
+#   uri: "mongodb://username:password@localhost:27017/"
+#   database: "reviews"
+#   collection: "google_reviews"
+
+# JSON backup settings
+backup_to_json: true # Whether to backup data to JSON files
+json_path: "google_reviews.json"
+seen_ids_path: "google_reviews.ids"
+
+# Data processing settings
+convert_dates: true # Convert string dates to MongoDB Date objects
+
+# Image download settings
+download_images: false # Download images from reviews
+# image_dir: "review_images" # Directory to store downloaded images
+# download_threads: 4 # Number of threads for downloading images
+# store_local_paths: true # Whether to store local image paths in documents
+
+# S3 settings (optional)
+use_s3: false # Whether to upload images to S3
+# s3:
+#   aws_access_key_id: "" # AWS Access Key ID
+#   aws_secret_access_key: "" # AWS Secret Access Key
+#   region_name: "us-east-1" # AWS region
+#   bucket_name: "" # S3 bucket name
+#   prefix: "reviews/" # Base prefix for uploaded files
+#   profiles_folder: "profiles/" # Folder name for profile images within prefix
+#   reviews_folder: "reviews/" # Folder name for review images within prefix
+#   delete_local_after_upload: false # Delete local files after successful S3 upload
+#   s3_base_url: "" # Custom S3 base URL for accessing files (if empty, uses AWS default)
+
+# URL replacement settings
+# replace_urls: true # Whether to replace original URLs with custom ones
+# custom_url_base: "https://yourdomain.com/images" # Base URL for replacement
+# custom_url_profiles: "/profiles/" # Path for profile images
+# custom_url_reviews: "/reviews/" # Path for review images
+# preserve_original_urls: true # Whether to preserve original URLs in original_* fields
+
+# Custom parameters to add to each document
+# These will be added statically to all documents
+# custom_params:
+#   company: "Your Business Name"
+#   source: "Google Maps"
+#   location: "Bangkok, Thailand"
+
+# Rate limiting
+min_scroll_delay: 0.9
+max_scroll_delay: 1.7
+pause_every_n_reviews: 150
+long_pause_seconds: 75
+daily_max_reviews: 10
+jitter_probability: 0.12
+jitter_extra_seconds: 2.5

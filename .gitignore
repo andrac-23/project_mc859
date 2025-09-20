@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+.env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Testing
+.coverage
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VSCode
+.vscode/
+
+# uv lock file is needed, don’t ignore uv.lock
+# pyproject.toml is needed, don’t ignore it
+
+*.csv
+*.tsv
+*.zip
+
+data-and-network/Places/geoNames/
+data-and-network/Scraper/google_reviews.*
