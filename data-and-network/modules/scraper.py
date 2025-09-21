@@ -706,7 +706,7 @@ class GoogleReviewsScraper:
             # Common elements that appear when reviews tab is active
             verification_selectors = [
                 # Reviews container
-                'div.m6QErb.DxyBCb.kA9KIf.dS8AEf',
+                # 'div.m6QErb.DxyBCb.kA9KIf.dS8AEf', # Main content that can also be present in other tabs. Removed for now.
                 # Review cards
                 'div[data-review-id]',
                 # Sort button (usually appears with reviews)
