@@ -5,11 +5,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-import Network.main as network  # noqa: E402
-import Pipeline.main as pipeline  # noqa: E402
-import Places.main as places  # noqa: E402
-
 MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 LOGGING_PATH = os.path.join(MODULE_DIR, 'pipeline.log')
 
@@ -27,8 +22,13 @@ formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
 console_handler.setFormatter(formatter)
 file_handler.setFormatter(formatter)
 
-logger.addHandler(console_handler)
-logger.addHandler(file_handler)
+if not logger.handlers:
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+import Network.main as network  # noqa: E402
+import Pipeline.main as pipeline  # noqa: E402
+import Places.main as places  # noqa: E402
 
 
 def reset_data_and_network():

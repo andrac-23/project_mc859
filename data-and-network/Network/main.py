@@ -29,12 +29,10 @@ class Emotion:
 
 MODULE_PATH = os.path.dirname(os.path.realpath(__file__))
 
-EXISTING_GRAPH_PATH = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'graph.gml'
-)
-EXISTING_EMOTIONS_PATH = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'emotions.json'
-)
+EXISTING_GRAPH_PATH = os.path.join(MODULE_PATH, 'graph.gml')
+EXISTING_EMOTIONS_PATH = os.path.join(MODULE_PATH, 'emotions.json')
+
+NETWORK_INFO_PATH = os.path.join(MODULE_PATH, '..', 'network_info.json')
 
 AttractionSentimentNet = nx.Graph()
 emotions_dict: Dict[str, Emotion] = {}
@@ -110,8 +108,9 @@ def add_edge(
         )
 
 
-def get_network_info():
-    return {
+def save_network_info():
+    logger.info('Calculating network information...')
+    network_info = {
         'num_nodes': AttractionSentimentNet.number_of_nodes(),
         'num_edges': AttractionSentimentNet.number_of_edges(),
         'avg_degree': sum(dict(AttractionSentimentNet.degree()).values())
@@ -120,6 +119,10 @@ def get_network_info():
         else 0,
         'num_components': nx.number_connected_components(AttractionSentimentNet),
     }
+    with open(NETWORK_INFO_PATH, 'w', encoding='utf-8') as f:
+        json.dump(network_info, f, ensure_ascii=False, indent=2)
+
+    logger.info('Network information saved to network_info.json')
 
 
 def save_emotions():

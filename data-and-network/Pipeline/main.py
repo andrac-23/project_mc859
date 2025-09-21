@@ -146,10 +146,15 @@ def get_pipeline_progress(places_info: places.Places) -> PipelineProgress:
 
 
 def save_pipeline_progress(progress: PipelineProgress):
+    logger.info('Saving progress before exiting...')
+    # Save pipeline
     with open(PIPELINE_PROGRESS_PATH, 'w', encoding='utf-8') as f:
         json.dump(
             progress, f, ensure_ascii=False, cls=utils.EnhancedJSONEncoder, indent=2
         )
+    # Save network
+    network.save_graph()
+    network.save_network_info()
 
 
 def reset_pipeline_data():
@@ -290,11 +295,6 @@ def exec_net_build_pipeline():
                         )
 
                         if interrupted:
-                            # Save progress before exiting
-                            logger.info('Saving progress before exiting...')
-
-                            save_pipeline_progress(pipeline_progress)
-                            network.save_graph()
                             raise StopIteration
 
                     city_progress.progress = '✅'
@@ -309,8 +309,10 @@ def exec_net_build_pipeline():
         logger.info('Pipeline execution completed successfully! ✅')
 
     except StopIteration:
-        logger.info('Pipeline interrupted. Progress saved. Exiting gracefully.')
+        logger.info('Pipeline interrupted. Saving and exiting gracefully.')
+
+    finally:
+        save_pipeline_progress(pipeline_progress)
 
     sys.exit(0)
-
     return

@@ -410,7 +410,22 @@ class GoogleReviewsScraper:
         else:
             # On regular OS, use default undetected_chromedriver
             logger.info('Using standard undetected_chromedriver setup')
-            driver = uc.Chrome(options=opts)
+            total_retries = 0
+            driver = None
+            while total_retries < 3:
+                try:
+                    driver = uc.Chrome(options=opts)
+                    break
+                except Exception as e:
+                    total_retries += 1
+                    logger.warning(
+                        f'Attempt {total_retries} - Failed to create undetected_chromedriver instance: {e}'
+                    )
+                    time.sleep(5)
+            if driver is None:
+                raise Exception(
+                    'Failed to initialize Chrome driver after multiple attempts'
+                )
 
         # Set page load timeout to avoid hanging
         driver.set_page_load_timeout(30)
