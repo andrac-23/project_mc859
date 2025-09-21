@@ -80,7 +80,7 @@ class TestS3Connection:
 
         region_name = s3_config.get('region_name', 'us-east-1')
         prefix = s3_config.get('prefix', 'reviews/').rstrip('/') + '/'
-        profiles_folder = s3_config.get('profiles_folder', 'profiles/').strip('/')
+        # profiles_folder = s3_config.get('profiles_folder', 'profiles/').strip('/')
         reviews_folder = s3_config.get('reviews_folder', 'reviews/').strip('/')
 
         try:
@@ -149,7 +149,7 @@ class TestS3Connection:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code == '403':
                 pytest.fail(
-                    f'Access denied during S3 operations. Check your permissions.'
+                    'Access denied during S3 operations. Check your permissions.'
                 )
             else:
                 pytest.fail(f'S3 operation failed: {e}')
@@ -198,7 +198,7 @@ class TestS3Connection:
             # Check that handler respects the use_s3 setting
             expected_enabled = config.get('use_s3', False)
             assert s3_handler.enabled == expected_enabled, (
-                f'S3Handler enabled state should match config use_s3 setting'
+                'S3Handler enabled state should match config use_s3 setting'
             )
 
             if expected_enabled:

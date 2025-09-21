@@ -6,9 +6,8 @@ Google‑Maps review scraper with MongoDB integration
 Main entry point for the scraper.
 """
 
-from typing import Any, Dict, List
+from typing import List
 
-from modules.cli import parse_arguments
 from modules.config import load_config
 from modules.scraper import GoogleReviewsScraper, TransformedReview
 

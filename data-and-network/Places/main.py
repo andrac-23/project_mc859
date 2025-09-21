@@ -152,11 +152,11 @@ def get_places(top_countries=10, top_cities=50) -> Places:
         top_cities[country_code]['continent'] = row['Continent']
 
     # Relabel the column country_code to the name of the country
-    df.rename(columns={'country_code': 'country'}, inplace=True)
     for country_code, df in top_cities.items():
         country_name = countriesDF[countriesDF['ISO'] == country_code][
             'Country'
         ].values[0]
+        df.rename(columns={'country_code': 'country'}, inplace=True)
         df['country'] = country_name
         df['continent'] = df['continent'].map(continents_map)
 

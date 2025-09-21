@@ -36,9 +36,9 @@ EXISTING_EMOTIONS_PATH = os.path.join(
 AttractionSentimentNet = nx.Graph()
 adjectives_dict: Dict[str, Emotion] = {}
 
-if EXISTING_GRAPH_PATH:
+if os.path.exists(EXISTING_GRAPH_PATH):
     AttractionSentimentNet = nx.read_gml(EXISTING_GRAPH_PATH)
-if EXISTING_EMOTIONS_PATH:
+if os.path.exists(EXISTING_EMOTIONS_PATH):
     import json
 
     with open(EXISTING_EMOTIONS_PATH, 'r', encoding='utf-8') as f:

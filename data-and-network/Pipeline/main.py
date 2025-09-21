@@ -61,7 +61,7 @@ PIPELINE_PROGRESS_PATH = os.path.join(MODULE_DIR, 'pipeline_progress.json')
 interrupted = False
 
 
-def handle_sigint(sig, frame):
+def handle_sigint(_sig, _frame):
     global interrupted
 
     logging.info('Termination signal received. Ending on end of current iteration...')

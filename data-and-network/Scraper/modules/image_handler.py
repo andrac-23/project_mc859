@@ -5,7 +5,6 @@ Image downloading and handling for Google Maps Reviews Scraper.
 from concurrent.futures import ThreadPoolExecutor
 import logging
 from pathlib import Path
-import re
 from typing import Any, Dict, Set, Tuple
 from urllib.parse import urlparse
 

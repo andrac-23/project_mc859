@@ -374,7 +374,7 @@ class GoogleReviewsScraper:
             chrome_binary = os.environ.get('CHROME_BIN')
             chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
 
-            log.info(f'Container environment detected')
+            log.info('Container environment detected')
             log.info(f'Chrome binary: {chrome_binary}')
             log.info(f'ChromeDriver path: {chromedriver_path}')
 
@@ -457,7 +457,7 @@ class GoogleReviewsScraper:
 
             # Strategy 2: Role and aria attributes (accessibility detection)
             role = tab.get_attribute('role')
-            aria_selected = tab.get_attribute('aria-selected')
+            # aria_selected = tab.get_attribute('aria-selected')
             aria_label = (tab.get_attribute('aria-label') or '').lower()
 
             # Many review tabs have role="tab" and data attributes
@@ -489,9 +489,9 @@ class GoogleReviewsScraper:
                             word in child_content for word in REVIEW_WORDS
                         ):
                             return True
-                    except:
+                    except Exception:
                         continue
-            except:
+            except Exception:
                 pass
 
             # Strategy 5: URL detection (some tabs have hrefs or data-hrefs with tell-tale values)
@@ -618,7 +618,7 @@ class GoogleReviewsScraper:
                                 successful_method = i + 1
                                 successful_selector = selector
                                 log.info(
-                                    f"Successfully clicked reviews tab using method {i + 1} and selector '{selector}'"
+                                    f"Successfully clicked reviews tab using method {successful_method} and selector '{successful_selector}'"
                                 )
                                 return True
                         except Exception as click_error:
@@ -653,9 +653,9 @@ class GoogleReviewsScraper:
                                     f"Successfully clicked element with keyword '{language_keyword}'"
                                 )
                                 return True
-                        except:
+                        except Exception:
                             continue
-                except:
+                except Exception:
                     continue
 
         # Final attempt: try to navigate directly to reviews by URL
@@ -862,7 +862,7 @@ class GoogleReviewsScraper:
                                         'Found sort button through container element'
                                     )
                                     break
-                        except:
+                        except Exception:
                             continue
                         if sort_button:
                             break
@@ -894,11 +894,11 @@ class GoogleReviewsScraper:
                                         f"Found sort button with XPath term: '{term}'"
                                     )
                                     break
-                            except:
+                            except Exception:
                                 continue
                         if sort_button:
                             break
-                    except:
+                    except Exception:
                         continue
 
             # Final fallback: look for any button in the reviews area that might open a dropdown
@@ -931,11 +931,11 @@ class GoogleReviewsScraper:
                                             'Found potential sort button via fallback dropdown detection'
                                         )
                                         break
-                                except:
+                                except Exception:
                                     continue
                             if sort_button:
                                 break
-                        except:
+                        except Exception:
                             continue
                 except Exception as e:
                     log.debug(f'Error in fallback sort button detection: {e}')
@@ -1015,7 +1015,7 @@ class GoogleReviewsScraper:
                 # Try to reset state by clicking elsewhere
                 try:
                     ActionChains(driver).move_by_offset(50, 50).click().perform()
-                except:
+                except Exception:
                     pass
                 return False
 
@@ -1068,7 +1068,7 @@ class GoogleReviewsScraper:
                                     # Fall back to the item's own text
                                     text = item.text.strip()
                                     visible_items.append((item, text))
-                            except:
+                            except Exception:
                                 # Last resort - use the item's own text
                                 text = item.text.strip()
                                 visible_items.append((item, text))
@@ -1082,7 +1082,7 @@ class GoogleReviewsScraper:
                                 )
                                 if parent:
                                     visible_items.append((parent, text))
-                            except:
+                            except Exception:
                                 continue
                         else:
                             # Generic menu item handling
@@ -1207,7 +1207,7 @@ class GoogleReviewsScraper:
                         return True
                     else:
                         log.warning(
-                            f'Failed to click menu item - keeping default sort order'
+                            'Failed to click menu item - keeping default sort order'
                         )
                 else:
                     log.warning(f"No matching menu item found for '{method}'")
@@ -1215,7 +1215,7 @@ class GoogleReviewsScraper:
                 # If we get here, we failed - try to close the menu by clicking elsewhere
                 try:
                     ActionChains(driver).move_by_offset(50, 50).click().perform()
-                except:
+                except Exception:
                     pass
 
                 return False
@@ -1252,7 +1252,7 @@ class GoogleReviewsScraper:
                     try:
                         if element.is_displayed():
                             return True
-                    except:
+                    except Exception:
                         continue
 
             # 2. Check for generic menu containers
@@ -1268,7 +1268,7 @@ class GoogleReviewsScraper:
                     try:
                         if element.is_displayed():
                             return True
-                    except:
+                    except Exception:
                         continue
 
             # 3. Look for menu items
@@ -1291,7 +1291,7 @@ class GoogleReviewsScraper:
                                 visible_items >= 2
                             ):  # At least 2 menu items should be visible
                                 return True
-                    except:
+                    except Exception:
                         continue
 
             # 4. Advanced detection with JavaScript
@@ -1351,7 +1351,7 @@ class GoogleReviewsScraper:
                 position_detected = driver.execute_script(position_check)
                 if position_detected:
                     return True
-            except:
+            except Exception:
                 pass
 
             return False
