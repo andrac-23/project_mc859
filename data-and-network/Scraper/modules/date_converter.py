@@ -2,16 +2,16 @@
 Date conversion utilities for Google Maps reviews.
 """
 
+from datetime import datetime, timedelta
 import logging
 import re
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 # Logger
-log = logging.getLogger("scraper")
+log = logging.getLogger('scraper')
 
 
-def relative_to_datetime(date_str: str, lang: str = "en") -> Optional[datetime]:
+def relative_to_datetime(date_str: str, lang: str = 'en') -> Optional[datetime]:
     """
     Convert a relative date string to a datetime object.
 
@@ -55,43 +55,47 @@ class DateConverter:
             Document with string dates converted to datetime objects
         """
         # Remove the original date string field if it exists
-        if "date" in doc:
-            original_date = doc.pop("date")
+        if 'date' in doc:
+            original_date = doc.pop('date')
 
             # Try to use the original date to fix review_date if needed
-            if "review_date" not in doc or not doc["review_date"]:
-                lang = next(iter(doc.get("description", {}).keys()), "en")
+            if 'review_date' not in doc or not doc['review_date']:
+                lang = next(iter(doc.get('description', {}).keys()), 'en')
                 date_obj = relative_to_datetime(original_date, lang)
                 if date_obj:
-                    doc["review_date"] = date_obj
+                    doc['review_date'] = date_obj
 
         # Fields that should be converted to dates
-        date_fields = ["created_date", "last_modified_date", "review_date"]
+        date_fields = ['created_date', 'last_modified_date', 'review_date']
 
         # Convert date fields to datetime
         for field in date_fields:
             if field in doc and isinstance(doc[field], str):
                 try:
                     # Try to parse as ISO format first
-                    doc[field] = datetime.fromisoformat(doc[field].replace('Z', '+00:00'))
+                    doc[field] = datetime.fromisoformat(
+                        doc[field].replace('Z', '+00:00')
+                    )
                 except (ValueError, TypeError):
                     # If that fails, try parsing as relative date
-                    lang = next(iter(doc.get("description", {}).keys()), "en")
+                    lang = next(iter(doc.get('description', {}).keys()), 'en')
                     date_obj = relative_to_datetime(doc[field], lang)
                     if date_obj:
                         doc[field] = date_obj
 
         # Handle nested date fields in owner_responses
-        if "owner_responses" in doc and isinstance(doc["owner_responses"], dict):
-            for lang, response in doc["owner_responses"].items():
-                if isinstance(response, dict) and "date" in response:
+        if 'owner_responses' in doc and isinstance(doc['owner_responses'], dict):
+            for lang, response in doc['owner_responses'].items():
+                if isinstance(response, dict) and 'date' in response:
                     # Remove the date string field from owner responses
-                    del response["date"]
+                    del response['date']
 
         return doc
 
     @staticmethod
-    def convert_dates_in_reviews(reviews: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def convert_dates_in_reviews(
+        reviews: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Convert string dates to datetime objects for all reviews.
 
@@ -101,7 +105,7 @@ class DateConverter:
         Returns:
             Reviews with dates converted to datetime objects
         """
-        log.info("Converting string dates to datetime objects...")
+        log.info('Converting string dates to datetime objects...')
 
         for review_id, review in reviews.items():
             reviews[review_id] = DateConverter.convert_dates_in_document(review)
@@ -109,7 +113,9 @@ class DateConverter:
         return reviews
 
 
-def parse_relative_date(date_str: str, lang: str, now: Optional[datetime] = None) -> str:
+def parse_relative_date(
+    date_str: str, lang: str, now: Optional[datetime] = None
+) -> str:
     """
     Converts a relative review_date (in English or Hebrew) such as "a week ago" or "לפני 7 שנים"
     into an ISO formatted datetime string (UTC).
@@ -140,7 +146,7 @@ def parse_relative_date(date_str: str, lang: str, now: Optional[datetime] = None
         return result
 
     # If the provided language failed, try other supported languages
-    supported_langs = ["en", "he", "th"]
+    supported_langs = ['en', 'he', 'th']
     for alt_lang in supported_langs:
         if alt_lang != lang.lower():
             result = try_parse_date(date_str, alt_lang, now)
@@ -163,51 +169,55 @@ def try_parse_date(date_str: str, lang: str, now: datetime) -> str:
     delta = timedelta(0)
     parsed = False
 
-    if lang.lower() == "en":
+    if lang.lower() == 'en':
         # Pattern: capture number or "a"/"an", then unit.
-        pattern = re.compile(r'(?P<num>a|an|\d+)\s+(?P<unit>day|week|month|year)s?\s+ago', re.IGNORECASE)
+        pattern = re.compile(
+            r'(?P<num>a|an|\d+)\s+(?P<unit>day|week|month|year)s?\s+ago', re.IGNORECASE
+        )
         m = pattern.search(date_str)
         if m:
-            num_str = m.group("num").lower()
-            num = 1 if num_str in ("a", "an") else int(num_str)
-            unit = m.group("unit").lower()
-            if unit == "day":
+            num_str = m.group('num').lower()
+            num = 1 if num_str in ('a', 'an') else int(num_str)
+            unit = m.group('unit').lower()
+            if unit == 'day':
                 delta = timedelta(days=num)
-            elif unit == "week":
+            elif unit == 'week':
                 delta = timedelta(weeks=num)
-            elif unit == "month":
+            elif unit == 'month':
                 delta = timedelta(days=30 * num)  # approximate
-            elif unit == "year":
+            elif unit == 'year':
                 delta = timedelta(days=365 * num)  # approximate
             parsed = True
-    elif lang.lower() == "he":
+    elif lang.lower() == 'he':
         # Remove the "לפני" prefix if present
         text = date_str.strip()
-        if text.startswith("לפני"):
-            text = text[len("לפני"):].strip()
+        if text.startswith('לפני'):
+            text = text[len('לפני') :].strip()
 
         # Handle special cases where the number and unit are combined:
         special = {
-            "חודשיים": (2, "month"),
-            "שבועיים": (2, "week"),
-            "יומיים": (2, "day"),
+            'חודשיים': (2, 'month'),
+            'שבועיים': (2, 'week'),
+            'יומיים': (2, 'day'),
         }
         if text in special:
             num, unit = special[text]
-            if unit == "day":
+            if unit == 'day':
                 delta = timedelta(days=num)
-            elif unit == "week":
+            elif unit == 'week':
                 delta = timedelta(weeks=num)
-            elif unit == "month":
+            elif unit == 'month':
                 delta = timedelta(days=30 * num)  # approximate
             parsed = True
         else:
             # Match optional number (or assume 1) and then a unit.
-            pattern = re.compile(r'(?P<num>\d+|אחד|אחת)?\s*(?P<unit>שנה|שנים|חודש|חודשים|יום|ימים|שבוע|שבועות)',
-                                 re.IGNORECASE)
+            pattern = re.compile(
+                r'(?P<num>\d+|אחד|אחת)?\s*(?P<unit>שנה|שנים|חודש|חודשים|יום|ימים|שבוע|שבועות)',
+                re.IGNORECASE,
+            )
             m = pattern.search(text)
             if m:
-                num_str = m.group("num")
+                num_str = m.group('num')
                 if not num_str:
                     num = 1
                 else:
@@ -215,57 +225,59 @@ def try_parse_date(date_str: str, lang: str, now: datetime) -> str:
                         num = int(num_str)
                     except ValueError:
                         num = 1
-                unit_he = m.group("unit")
+                unit_he = m.group('unit')
                 # Map the Hebrew unit (both singular and plural) to English unit names
-                if unit_he in ("יום", "ימים"):
-                    unit = "day"
-                elif unit_he in ("שבוע", "שבועות"):
-                    unit = "week"
-                elif unit_he in ("חודש", "חודשים"):
-                    unit = "month"
-                elif unit_he in ("שנה", "שנים"):
-                    unit = "year"
+                if unit_he in ('יום', 'ימים'):
+                    unit = 'day'
+                elif unit_he in ('שבוע', 'שבועות'):
+                    unit = 'week'
+                elif unit_he in ('חודש', 'חודשים'):
+                    unit = 'month'
+                elif unit_he in ('שנה', 'שנים'):
+                    unit = 'year'
                 else:
-                    unit = "day"  # fallback
+                    unit = 'day'  # fallback
 
-                if unit == "day":
+                if unit == 'day':
                     delta = timedelta(days=num)
-                elif unit == "week":
+                elif unit == 'week':
                     delta = timedelta(weeks=num)
-                elif unit == "month":
+                elif unit == 'month':
                     delta = timedelta(days=30 * num)  # approximate
-                elif unit == "year":
+                elif unit == 'year':
                     delta = timedelta(days=365 * num)  # approximate
                 parsed = True
-    elif lang.lower() == "th":
+    elif lang.lower() == 'th':
         # Thai language patterns (simplified)
         # Check for Thai patterns like "3 วันที่แล้ว" (3 days ago)
-        thai_pattern = re.compile(r'(?P<num>\d+)?\s*(?P<unit>วัน|สัปดาห์|เดือน|ปี)ที่แล้ว', re.IGNORECASE)
+        thai_pattern = re.compile(
+            r'(?P<num>\d+)?\s*(?P<unit>วัน|สัปดาห์|เดือน|ปี)ที่แล้ว', re.IGNORECASE
+        )
         m = thai_pattern.search(date_str)
         if m:
-            num_str = m.group("num")
+            num_str = m.group('num')
             num = 1 if not num_str else int(num_str)
-            unit_th = m.group("unit")
+            unit_th = m.group('unit')
 
             # Map Thai units to English
-            if unit_th == "วัน":
-                unit = "day"
-            elif unit_th == "สัปดาห์":
-                unit = "week"
-            elif unit_th == "เดือน":
-                unit = "month"
-            elif unit_th == "ปี":
-                unit = "year"
+            if unit_th == 'วัน':
+                unit = 'day'
+            elif unit_th == 'สัปดาห์':
+                unit = 'week'
+            elif unit_th == 'เดือน':
+                unit = 'month'
+            elif unit_th == 'ปี':
+                unit = 'year'
             else:
-                unit = "day"  # fallback
+                unit = 'day'  # fallback
 
-            if unit == "day":
+            if unit == 'day':
                 delta = timedelta(days=num)
-            elif unit == "week":
+            elif unit == 'week':
                 delta = timedelta(weeks=num)
-            elif unit == "month":
+            elif unit == 'month':
                 delta = timedelta(days=30 * num)  # approximate
-            elif unit == "year":
+            elif unit == 'year':
                 delta = timedelta(days=365 * num)  # approximate
             parsed = True
 
@@ -377,15 +389,15 @@ def try_parse_date(date_str: str, lang: str, now: datetime) -> str:
 
 
 # --- Example usage ---
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Fixed reference time for reproducibility:
     fixed_now = datetime(2025, 2, 5, 12, 0, 0)
     examples = [
-        ("a week ago", "he"),
-        ("4 weeks ago", "en"),
-        ("לפני 7 שנים", "he"),
-        ("לפני חודשיים", "he")
+        ('a week ago', 'he'),
+        ('4 weeks ago', 'en'),
+        ('לפני 7 שנים', 'he'),
+        ('לפני חודשיים', 'he'),
     ]
     for text, lang in examples:
         iso_date = parse_relative_date(text, lang, now=fixed_now)
-        print(f"Original: {text} ({lang}) => ISO: {iso_date}")
+        print(f'Original: {text} ({lang}) => ISO: {iso_date}')

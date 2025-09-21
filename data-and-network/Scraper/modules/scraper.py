@@ -5,14 +5,13 @@ Selenium scraping logic for Google Maps Reviews.
 import logging
 import os
 import platform
-import re
 import random
+import re
 import time
 import traceback
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-import undetected_chromedriver as uc
-from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
@@ -21,140 +20,305 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from tqdm import tqdm
+import undetected_chromedriver as uc
 
-from modules.data_storage import MongoDBStorage, JSONStorage, TransformedReview, merge_review
+from modules.data_storage import (
+    JSONStorage,
+    MongoDBStorage,
+    TransformedReview,
+    merge_review,
+)
 from modules.models import RawReview
 
 # Logger
-log = logging.getLogger("scraper")
+log = logging.getLogger('scraper')
 
 # CSS Selectors
 PANE_SEL = 'div[role="main"] div.m6QErb.DxyBCb.kA9KIf.dS8AEf'
-CARD_SEL = "div[data-review-id]"
-COOKIE_BTN = ('button[aria-label*="Accept" i],'
-              'button[jsname="hZCF7e"],'
-              'button[data-mdc-dialog-action="accept"]')
+CARD_SEL = 'div[data-review-id]'
+COOKIE_BTN = (
+    'button[aria-label*="Accept" i],'
+    'button[jsname="hZCF7e"],'
+    'button[data-mdc-dialog-action="accept"]'
+)
 SORT_BTN = 'button[aria-label="Sort reviews" i], button[aria-label="Sort" i]'
 MENU_ITEMS = 'div[role="menu"] [role="menuitem"], li[role="menuitem"]'
 
 SORT_OPTIONS = {
-    "newest": (
-        "Newest", "החדשות ביותר", "ใหม่ที่สุด", "最新", "Más recientes", "最近",
-        "Mais recentes", "Neueste", "Plus récent", "Più recenti", "Nyeste",
-        "Новые", "Nieuwste", "جديد", "Nyeste", "Uusimmat", "Najnowsze",
-        "Senaste", "Terbaru", "Yakın zamanlı", "Mới nhất", "नवीनतम"
+    'newest': (
+        'Newest',
+        'החדשות ביותר',
+        'ใหม่ที่สุด',
+        '最新',
+        'Más recientes',
+        '最近',
+        'Mais recentes',
+        'Neueste',
+        'Plus récent',
+        'Più recenti',
+        'Nyeste',
+        'Новые',
+        'Nieuwste',
+        'جديد',
+        'Nyeste',
+        'Uusimmat',
+        'Najnowsze',
+        'Senaste',
+        'Terbaru',
+        'Yakın zamanlı',
+        'Mới nhất',
+        'नवीनतम',
     ),
-    "highest": (
-        "Highest rating", "הדירוג הגבוה ביותר", "คะแนนสูงสุด", "最高評価",
-        "Calificación más alta", "最高评分", "Melhor avaliação", "Höchste Bewertung",
-        "Note la plus élevée", "Valutazione più alta", "Høyeste vurdering",
-        "Наивысший рейтинг", "Hoogste waardering", "أعلى تقييم", "Højeste vurdering",
-        "Korkein arvostelu", "Najwyższa ocena", "Högsta betyg", "Peringkat tertinggi",
-        "En yüksek puan", "Đánh giá cao nhất", "उच्चतम रेटिंग", "Top rating"
+    'highest': (
+        'Highest rating',
+        'הדירוג הגבוה ביותר',
+        'คะแนนสูงสุด',
+        '最高評価',
+        'Calificación más alta',
+        '最高评分',
+        'Melhor avaliação',
+        'Höchste Bewertung',
+        'Note la plus élevée',
+        'Valutazione più alta',
+        'Høyeste vurdering',
+        'Наивысший рейтинг',
+        'Hoogste waardering',
+        'أعلى تقييم',
+        'Højeste vurdering',
+        'Korkein arvostelu',
+        'Najwyższa ocena',
+        'Högsta betyg',
+        'Peringkat tertinggi',
+        'En yüksek puan',
+        'Đánh giá cao nhất',
+        'उच्चतम रेटिंग',
+        'Top rating',
     ),
-    "lowest": (
-        "Lowest rating", "הדירוג הנמוך ביותר", "คะแนนต่ำสุด", "最低評価",
-        "Calificación más baja", "最低评分", "Pior avaliação", "Niedrigste Bewertung",
-        "Note la plus basse", "Valutazione più bassa", "Laveste vurdering",
-        "Наименьший рейтинг", "Laagste waardering", "أقل تقييم", "Laveste vurdering",
-        "Alhaisin arvostelu", "Najniższa ocena", "Lägsta betyg", "Peringkat terendah",
-        "En düşük puan", "Đánh giá thấp nhất", "निम्नतम रेटिंग", "Worst rating"
+    'lowest': (
+        'Lowest rating',
+        'הדירוג הנמוך ביותר',
+        'คะแนนต่ำสุด',
+        '最低評価',
+        'Calificación más baja',
+        '最低评分',
+        'Pior avaliação',
+        'Niedrigste Bewertung',
+        'Note la plus basse',
+        'Valutazione più bassa',
+        'Laveste vurdering',
+        'Наименьший рейтинг',
+        'Laagste waardering',
+        'أقل تقييم',
+        'Laveste vurdering',
+        'Alhaisin arvostelu',
+        'Najniższa ocena',
+        'Lägsta betyg',
+        'Peringkat terendah',
+        'En düşük puan',
+        'Đánh giá thấp nhất',
+        'निम्नतम रेटिंग',
+        'Worst rating',
     ),
-    "relevance": (
-        "Most relevant", "רלוונטיות ביותר", "เกี่ยวข้องมากที่สุด", "関連性",
-        "Más relevantes", "最相关", "Mais relevantes", "Relevanteste",
-        "Plus pertinents", "Più pertinenti", "Mest relevante",
-        "Наиболее релевантные", "Meest relevant", "الأكثر صلة", "Mest relevante",
-        "Olennaisimmat", "Najbardziej trafne", "Mest relevanta", "Paling relevan",
-        "En alakalı", "Liên quan nhất", "सबसे प्रासंगिक", "Relevance"
-    )
+    'relevance': (
+        'Most relevant',
+        'רלוונטיות ביותר',
+        'เกี่ยวข้องมากที่สุด',
+        '関連性',
+        'Más relevantes',
+        '最相关',
+        'Mais relevantes',
+        'Relevanteste',
+        'Plus pertinents',
+        'Più pertinenti',
+        'Mest relevante',
+        'Наиболее релевантные',
+        'Meest relevant',
+        'الأكثر صلة',
+        'Mest relevante',
+        'Olennaisimmat',
+        'Najbardziej trafne',
+        'Mest relevanta',
+        'Paling relevan',
+        'En alakalı',
+        'Liên quan nhất',
+        'सबसे प्रासंगिक',
+        'Relevance',
+    ),
 }
 
 # Comprehensive multi-language review keywords
 REVIEW_WORDS = {
     # English
-    "reviews", "review", "ratings", "rating",
-
+    'reviews',
+    'review',
+    'ratings',
+    'rating',
     # Hebrew
-    "ביקורות", "ביקורת", "ביקורות על", "דירוגים", "דירוג",
-
+    'ביקורות',
+    'ביקורת',
+    'ביקורות על',
+    'דירוגים',
+    'דירוג',
     # Thai
-    "รีวิว", "บทวิจารณ์", "คะแนน", "ความคิดเห็น",
-
+    'รีวิว',
+    'บทวิจารณ์',
+    'คะแนน',
+    'ความคิดเห็น',
     # Spanish
-    "reseñas", "opiniones", "valoraciones", "críticas", "calificaciones",
-
+    'reseñas',
+    'opiniones',
+    'valoraciones',
+    'críticas',
+    'calificaciones',
     # French
-    "avis", "commentaires", "évaluations", "critiques", "notes",
-
+    'avis',
+    'commentaires',
+    'évaluations',
+    'critiques',
+    'notes',
     # German
-    "bewertungen", "rezensionen", "beurteilungen", "meinungen", "kritiken",
-
+    'bewertungen',
+    'rezensionen',
+    'beurteilungen',
+    'meinungen',
+    'kritiken',
     # Italian
-    "recensioni", "valutazioni", "opinioni", "giudizi", "commenti",
-
+    'recensioni',
+    'valutazioni',
+    'opinioni',
+    'giudizi',
+    'commenti',
     # Portuguese
-    "avaliações", "comentários", "opiniões", "análises", "críticas",
-
+    'avaliações',
+    'comentários',
+    'opiniões',
+    'análises',
+    'críticas',
     # Russian
-    "отзывы", "рецензии", "обзоры", "оценки", "комментарии",
-
+    'отзывы',
+    'рецензии',
+    'обзоры',
+    'оценки',
+    'комментарии',
     # Japanese
-    "レビュー", "口コミ", "評価", "批評", "感想",
-
+    'レビュー',
+    '口コミ',
+    '評価',
+    '批評',
+    '感想',
     # Korean
-    "리뷰", "평가", "후기", "댓글", "의견",
-
+    '리뷰',
+    '평가',
+    '후기',
+    '댓글',
+    '의견',
     # Chinese (Simplified and Traditional)
-    "评论", "評論", "点评", "點評", "评价", "評價", "意见", "意見", "回顾", "回顧",
-
+    '评论',
+    '評論',
+    '点评',
+    '點評',
+    '评价',
+    '評價',
+    '意见',
+    '意見',
+    '回顾',
+    '回顧',
     # Arabic
-    "مراجعات", "تقييمات", "آراء", "تعليقات", "نقد",
-
+    'مراجعات',
+    'تقييمات',
+    'آراء',
+    'تعليقات',
+    'نقد',
     # Hindi
-    "समीक्षा", "रिव्यू", "राय", "मूल्यांकन", "प्रतिक्रिया",
-
+    'समीक्षा',
+    'रिव्यू',
+    'राय',
+    'मूल्यांकन',
+    'प्रतिक्रिया',
     # Turkish
-    "yorumlar", "değerlendirmeler", "incelemeler", "görüşler", "puanlar",
-
+    'yorumlar',
+    'değerlendirmeler',
+    'incelemeler',
+    'görüşler',
+    'puanlar',
     # Dutch
-    "beoordelingen", "recensies", "meningen", "opmerkingen", "waarderingen",
-
+    'beoordelingen',
+    'recensies',
+    'meningen',
+    'opmerkingen',
+    'waarderingen',
     # Polish
-    "recenzje", "opinie", "oceny", "komentarze", "uwagi",
-
+    'recenzje',
+    'opinie',
+    'oceny',
+    'komentarze',
+    'uwagi',
     # Vietnamese
-    "đánh giá", "nhận xét", "bình luận", "phản hồi", "bài đánh giá",
-
+    'đánh giá',
+    'nhận xét',
+    'bình luận',
+    'phản hồi',
+    'bài đánh giá',
     # Indonesian
-    "ulasan", "tinjauan", "komentar", "penilaian", "pendapat",
-
+    'ulasan',
+    'tinjauan',
+    'komentar',
+    'penilaian',
+    'pendapat',
     # Swedish
-    "recensioner", "betyg", "omdömen", "åsikter", "kommentarer",
-
+    'recensioner',
+    'betyg',
+    'omdömen',
+    'åsikter',
+    'kommentarer',
     # Norwegian
-    "anmeldelser", "vurderinger", "omtaler", "meninger", "tilbakemeldinger",
-
+    'anmeldelser',
+    'vurderinger',
+    'omtaler',
+    'meninger',
+    'tilbakemeldinger',
     # Danish
-    "anmeldelser", "bedømmelser", "vurderinger", "meninger", "kommentarer",
-
+    'anmeldelser',
+    'bedømmelser',
+    'vurderinger',
+    'meninger',
+    'kommentarer',
     # Finnish
-    "arvostelut", "arviot", "kommentit", "mielipiteet", "palautteet",
-
+    'arvostelut',
+    'arviot',
+    'kommentit',
+    'mielipiteet',
+    'palautteet',
     # Greek
-    "κριτικές", "αξιολογήσεις", "σχόλια", "απόψεις", "βαθμολογίες",
-
+    'κριτικές',
+    'αξιολογήσεις',
+    'σχόλια',
+    'απόψεις',
+    'βαθμολογίες',
     # Czech
-    "recenze", "hodnocení", "názory", "komentáře", "posudky",
-
+    'recenze',
+    'hodnocení',
+    'názory',
+    'komentáře',
+    'posudky',
     # Romanian
-    "recenzii", "evaluări", "opinii", "comentarii", "note",
-
+    'recenzii',
+    'evaluări',
+    'opinii',
+    'comentarii',
+    'note',
     # Hungarian
-    "vélemények", "értékelések", "kritikák", "hozzászólások", "megjegyzések",
-
+    'vélemények',
+    'értékelések',
+    'kritikák',
+    'hozzászólások',
+    'megjegyzések',
     # Bulgarian
-    "отзиви", "ревюта", "мнения", "коментари", "оценки"
+    'отзиви',
+    'ревюта',
+    'мнения',
+    'коментари',
+    'оценки',
 }
 
 
@@ -164,20 +328,20 @@ class GoogleReviewsScraper:
     def __init__(self, config: Dict[str, Any]):
         """Initialize scraper with configuration"""
         self.config = config
-        self.use_mongodb = config.get("use_mongodb", True)
+        self.use_mongodb = config.get('use_mongodb', True)
         self.mongodb = MongoDBStorage(config) if self.use_mongodb else None
         self.json_storage = JSONStorage(config)
-        self.backup_to_json = config.get("backup_to_json", True)
-        self.overwrite_existing = config.get("overwrite_existing", False)
+        self.backup_to_json = config.get('backup_to_json', True)
+        self.overwrite_existing = config.get('overwrite_existing', False)
 
         # Scraping parameters
-        self.min_scroll_delay = config.get("min_scroll_delay", 0.9)
-        self.max_scroll_delay = config.get("max_scroll_delay", 1.7)
-        self.pause_every_n = config.get("pause_every_n_reviews", 0)
-        self.long_pause_seconds = config.get("long_pause_seconds", 0)
-        self.daily_max_reviews = config.get("daily_max_reviews", 0)
-        self.jitter_probability = config.get("jitter_probability", 0.1)
-        self.jitter_extra_seconds = config.get("jitter_extra_seconds", 2.0)
+        self.min_scroll_delay = config.get('min_scroll_delay', 0.9)
+        self.max_scroll_delay = config.get('max_scroll_delay', 1.7)
+        self.pause_every_n = config.get('pause_every_n_reviews', 0)
+        self.long_pause_seconds = config.get('long_pause_seconds', 0)
+        self.daily_max_reviews = config.get('daily_max_reviews', 0)
+        self.jitter_probability = config.get('jitter_probability', 0.1)
+        self.jitter_extra_seconds = config.get('jitter_extra_seconds', 2.0)
 
         self._processed_total = 0  # Total reviews processed in current session
 
@@ -191,62 +355,62 @@ class GoogleReviewsScraper:
 
         # Create Chrome options
         opts = uc.ChromeOptions()
-        opts.add_argument("--window-size=1400,900")
-        opts.add_argument("--ignore-certificate-errors")
-        opts.add_argument("--disable-gpu")  # Improves performance
-        opts.add_argument("--disable-dev-shm-usage")  # Helps with stability
-        opts.add_argument("--no-sandbox")  # More stable in some environments
+        opts.add_argument('--window-size=1400,900')
+        opts.add_argument('--ignore-certificate-errors')
+        opts.add_argument('--disable-gpu')  # Improves performance
+        opts.add_argument('--disable-dev-shm-usage')  # Helps with stability
+        opts.add_argument('--no-sandbox')  # More stable in some environments
 
         # Use headless mode if requested
         if headless:
-            opts.add_argument("--headless=new")
+            opts.add_argument('--headless=new')
 
         # Log platform information for debugging
-        log.info(f"Platform: {platform.platform()}")
-        log.info(f"Python version: {platform.python_version()}")
+        log.info(f'Platform: {platform.platform()}')
+        log.info(f'Python version: {platform.python_version()}')
 
         # If in container, use environment-provided binaries
         if in_container:
             chrome_binary = os.environ.get('CHROME_BIN')
             chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
 
-            log.info(f"Container environment detected")
-            log.info(f"Chrome binary: {chrome_binary}")
-            log.info(f"ChromeDriver path: {chromedriver_path}")
+            log.info(f'Container environment detected')
+            log.info(f'Chrome binary: {chrome_binary}')
+            log.info(f'ChromeDriver path: {chromedriver_path}')
 
             if chrome_binary and os.path.exists(chrome_binary):
-                log.info(f"Using Chrome binary from environment: {chrome_binary}")
+                log.info(f'Using Chrome binary from environment: {chrome_binary}')
                 opts.binary_location = chrome_binary
 
             try:
                 # Try creating Chrome driver with undetected_chromedriver
-                log.info("Attempting to create undetected_chromedriver instance")
+                log.info('Attempting to create undetected_chromedriver instance')
                 driver = uc.Chrome(options=opts)
-                log.info("Successfully created undetected_chromedriver instance")
+                log.info('Successfully created undetected_chromedriver instance')
             except Exception as e:
                 # Fall back to regular Selenium if undetected_chromedriver fails
-                log.warning(f"Failed to create undetected_chromedriver instance: {e}")
-                log.info("Falling back to regular Selenium Chrome")
+                log.warning(f'Failed to create undetected_chromedriver instance: {e}')
+                log.info('Falling back to regular Selenium Chrome')
 
                 # Import Selenium webdriver here to avoid potential import issues
                 from selenium import webdriver
                 from selenium.webdriver.chrome.service import Service
 
                 if chromedriver_path and os.path.exists(chromedriver_path):
-                    log.info(f"Using ChromeDriver from path: {chromedriver_path}")
+                    log.info(f'Using ChromeDriver from path: {chromedriver_path}')
                     service = Service(executable_path=chromedriver_path)
                     driver = webdriver.Chrome(service=service, options=opts)
                 else:
-                    log.info("Using default ChromeDriver")
+                    log.info('Using default ChromeDriver')
                     driver = webdriver.Chrome(options=opts)
         else:
             # On regular OS, use default undetected_chromedriver
-            log.info("Using standard undetected_chromedriver setup")
+            log.info('Using standard undetected_chromedriver setup')
             driver = uc.Chrome(options=opts)
 
         # Set page load timeout to avoid hanging
         driver.set_page_load_timeout(30)
-        log.info("Chrome driver setup completed successfully")
+        log.info('Chrome driver setup completed successfully')
         return driver
 
     def dismiss_cookies(self, driver: Chrome):
@@ -259,7 +423,7 @@ class GoogleReviewsScraper:
             WebDriverWait(driver, 3).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, COOKIE_BTN))
             )
-            log.info("Cookie consent dialog found, attempting to dismiss")
+            log.info('Cookie consent dialog found, attempting to dismiss')
 
             # Get elements again after waiting to avoid stale references
             elements = driver.find_elements(By.CSS_SELECTOR, COOKIE_BTN)
@@ -267,16 +431,16 @@ class GoogleReviewsScraper:
                 try:
                     if elem.is_displayed():
                         elem.click()
-                        log.info("Cookie dialog dismissed")
+                        log.info('Cookie dialog dismissed')
                         return True
                 except Exception as e:
-                    log.debug(f"Error clicking cookie button: {e}")
+                    log.debug(f'Error clicking cookie button: {e}')
                     continue
         except TimeoutException:
             # This is expected if no cookie dialog is present
-            log.debug("No cookie consent dialog detected")
+            log.debug('No cookie consent dialog detected')
         except Exception as e:
-            log.debug(f"Error handling cookie dialog: {e}")
+            log.debug(f'Error handling cookie dialog: {e}')
 
         return False
 
@@ -287,25 +451,25 @@ class GoogleReviewsScraper:
         """
         try:
             # Strategy 1: Data attribute detection (most reliable across languages)
-            tab_index = tab.get_attribute("data-tab-index")
-            if tab_index == "1" or tab_index == "reviews":
+            tab_index = tab.get_attribute('data-tab-index')
+            if tab_index == '1' or tab_index == 'reviews':
                 return True
 
             # Strategy 2: Role and aria attributes (accessibility detection)
-            role = tab.get_attribute("role")
-            aria_selected = tab.get_attribute("aria-selected")
-            aria_label = (tab.get_attribute("aria-label") or "").lower()
+            role = tab.get_attribute('role')
+            aria_selected = tab.get_attribute('aria-selected')
+            aria_label = (tab.get_attribute('aria-label') or '').lower()
 
             # Many review tabs have role="tab" and data attributes
-            if role == "tab" and any(word in aria_label for word in REVIEW_WORDS):
+            if role == 'tab' and any(word in aria_label for word in REVIEW_WORDS):
                 return True
 
             # Strategy 3: Text content detection (multiple sources)
             sources = [
-                tab.text.lower() if tab.text else "",  # Direct text
+                tab.text.lower() if tab.text else '',  # Direct text
                 aria_label,  # ARIA label
-                tab.get_attribute("innerHTML").lower() or "",  # Inner HTML
-                tab.get_attribute("textContent").lower() or ""  # Text content
+                tab.get_attribute('innerHTML').lower() or '',  # Inner HTML
+                tab.get_attribute('textContent').lower() or '',  # Text content
             ]
 
             # Check all sources against our comprehensive keyword list
@@ -316,13 +480,14 @@ class GoogleReviewsScraper:
             # Strategy 4: Nested element detection
             try:
                 # Check text in all child elements
-                for child in tab.find_elements(By.CSS_SELECTOR, "*"):
+                for child in tab.find_elements(By.CSS_SELECTOR, '*'):
                     try:
-                        child_text = child.text.lower() if child.text else ""
-                        child_content = child.get_attribute("textContent").lower() or ""
+                        child_text = child.text.lower() if child.text else ''
+                        child_content = child.get_attribute('textContent').lower() or ''
 
                         if any(word in child_text for word in REVIEW_WORDS) or any(
-                                word in child_content for word in REVIEW_WORDS):
+                            word in child_content for word in REVIEW_WORDS
+                        ):
                             return True
                     except:
                         continue
@@ -330,14 +495,22 @@ class GoogleReviewsScraper:
                 pass
 
             # Strategy 5: URL detection (some tabs have hrefs or data-hrefs with tell-tale values)
-            for attr in ["href", "data-href", "data-url", "data-target"]:
-                attr_value = (tab.get_attribute(attr) or "").lower()
-                if attr_value and ("review" in attr_value or "rating" in attr_value):
+            for attr in ['href', 'data-href', 'data-url', 'data-target']:
+                attr_value = (tab.get_attribute(attr) or '').lower()
+                if attr_value and ('review' in attr_value or 'rating' in attr_value):
                     return True
 
             # Strategy 6: Class detection (some review tabs have specific classes)
-            tab_class = tab.get_attribute("class") or ""
-            review_classes = ["review", "reviews", "rating", "ratings", "comments", "feedback", "g4jrve"]
+            tab_class = tab.get_attribute('class') or ''
+            review_classes = [
+                'review',
+                'reviews',
+                'rating',
+                'ratings',
+                'comments',
+                'feedback',
+                'g4jrve',
+            ]
             if any(cls in tab_class for cls in review_classes):
                 return True
 
@@ -346,7 +519,7 @@ class GoogleReviewsScraper:
         except StaleElementReferenceException:
             return False
         except Exception as e:
-            log.debug(f"Error in is_reviews_tab: {e}")
+            log.debug(f'Error in is_reviews_tab: {e}')
             return False
 
     def click_reviews_tab(self, driver: Chrome):
@@ -366,12 +539,10 @@ class GoogleReviewsScraper:
             'button[role="tab"]',  # Button tabs
             'div[role="tab"]',  # Div tabs
             'a[role="tab"]',  # Link tabs
-
             # Common Google Maps review tab selectors
             '.fontTitleSmall[role="tab"]',  # Google Maps title font tabs
             '.hh2c6[role="tab"]',  # Common Google Maps class
             '.m6QErb [role="tab"]',  # Maps container tabs
-
             # Text-based selectors for various languages
             'button:contains("reviews")',  # Button containing "reviews"
             'div[role="tablist"] > *',  # Any tab in a tab list
@@ -401,29 +572,39 @@ class GoogleReviewsScraper:
                         continue
 
                     # Found a reviews tab, attempt to click it with multiple methods
-                    log.info(f"Found potential reviews tab ({selector}): '{element.text}', attempting to click")
+                    log.info(
+                        f"Found potential reviews tab ({selector}): '{element.text}', attempting to click"
+                    )
 
                     # Ensure visibility
-                    driver.execute_script("arguments[0].scrollIntoView({block:'center', behavior:'smooth'});", element)
+                    driver.execute_script(
+                        "arguments[0].scrollIntoView({block:'center', behavior:'smooth'});",
+                        element,
+                    )
                     time.sleep(0.7)  # Wait for scroll
 
                     # Try different click methods in order of reliability
                     click_methods = [
                         # Method 1: JavaScript click (most reliable)
-                        lambda: driver.execute_script("arguments[0].click();", element),
-
+                        lambda: driver.execute_script('arguments[0].click();', element),
                         # Method 2: Direct click
                         lambda: element.click(),
-
                         # Method 3: ActionChains click
-                        lambda: ActionChains(driver).move_to_element(element).click().perform(),
-
+                        lambda: ActionChains(driver)
+                        .move_to_element(element)
+                        .click()
+                        .perform(),
                         # Method 4: Send RETURN key
                         lambda: element.send_keys(Keys.RETURN),
-
                         # Method 5: Center click with ActionChains
-                        lambda: ActionChains(driver).move_to_element_with_offset(
-                            element, element.size['width'] // 2, element.size['height'] // 2).click().perform(),
+                        lambda: ActionChains(driver)
+                        .move_to_element_with_offset(
+                            element,
+                            element.size['width'] // 2,
+                            element.size['height'] // 2,
+                        )
+                        .click()
+                        .perform(),
                     ]
 
                     # Try each click method
@@ -437,10 +618,11 @@ class GoogleReviewsScraper:
                                 successful_method = i + 1
                                 successful_selector = selector
                                 log.info(
-                                    f"Successfully clicked reviews tab using method {i + 1} and selector '{selector}'")
+                                    f"Successfully clicked reviews tab using method {i + 1} and selector '{selector}'"
+                                )
                                 return True
                         except Exception as click_error:
-                            log.debug(f"Click method {i + 1} failed: {click_error}")
+                            log.debug(f'Click method {i + 1} failed: {click_error}')
                             continue
 
             except Exception as selector_error:
@@ -458,13 +640,18 @@ class GoogleReviewsScraper:
                     for element in elements:
                         try:
                             log.info(f"Trying XPath with keyword '{language_keyword}'")
-                            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+                            driver.execute_script(
+                                "arguments[0].scrollIntoView({block:'center'});",
+                                element,
+                            )
                             time.sleep(0.7)
-                            driver.execute_script("arguments[0].click();", element)
+                            driver.execute_script('arguments[0].click();', element)
                             time.sleep(1.5)
 
                             if self.verify_reviews_tab_clicked(driver):
-                                log.info(f"Successfully clicked element with keyword '{language_keyword}'")
+                                log.info(
+                                    f"Successfully clicked element with keyword '{language_keyword}'"
+                                )
                                 return True
                         except:
                             continue
@@ -474,34 +661,34 @@ class GoogleReviewsScraper:
         # Final attempt: try to navigate directly to reviews by URL
         try:
             current_url = driver.current_url
-            if "?hl=" in current_url:  # Preserve language setting if present
+            if '?hl=' in current_url:  # Preserve language setting if present
                 lang_param = re.search(r'\?hl=([^&]*)', current_url)
                 if lang_param:
                     lang_code = lang_param.group(1)
                     # Try to replace the current part with 'reviews' or append it
                     if '/place/' in current_url:
                         parts = current_url.split('/place/')
-                        new_url = f"{parts[0]}/place/{parts[1].split('/')[0]}/reviews?hl={lang_code}"
+                        new_url = f'{parts[0]}/place/{parts[1].split("/")[0]}/reviews?hl={lang_code}'
                         driver.get(new_url)
                         time.sleep(2)
-                        if "review" in driver.current_url.lower():
-                            log.info("Navigated directly to reviews page via URL")
+                        if 'review' in driver.current_url.lower():
+                            log.info('Navigated directly to reviews page via URL')
                             return True
 
             # Try to identify reviews link in URL
             if '/place/' in current_url and '/reviews' not in current_url:
                 parts = current_url.split('/place/')
-                new_url = f"{parts[0]}/place/{parts[1].split('/')[0]}/reviews"
+                new_url = f'{parts[0]}/place/{parts[1].split("/")[0]}/reviews'
                 driver.get(new_url)
                 time.sleep(2)
-                if "review" in driver.current_url.lower():
-                    log.info("Navigated directly to reviews page via URL")
+                if 'review' in driver.current_url.lower():
+                    log.info('Navigated directly to reviews page via URL')
                     return True
         except Exception as url_error:
-            log.warning(f"Failed to navigate to reviews via URL: {url_error}")
+            log.warning(f'Failed to navigate to reviews via URL: {url_error}')
 
-        log.warning(f"Failed to find/click reviews tab after {attempts} attempts")
-        raise TimeoutException("Reviews tab not found or could not be clicked")
+        log.warning(f'Failed to find/click reviews tab after {attempts} attempts')
+        raise TimeoutException('Reviews tab not found or could not be clicked')
 
     def verify_reviews_tab_clicked(self, driver: Chrome) -> bool:
         """
@@ -513,19 +700,15 @@ class GoogleReviewsScraper:
             verification_selectors = [
                 # Reviews container
                 'div.m6QErb.DxyBCb.kA9KIf.dS8AEf',
-
                 # Review cards
                 'div[data-review-id]',
-
                 # Sort button (usually appears with reviews)
                 'button[aria-label*="Sort" i]',
-
                 # Review rating elements
                 'span[role="img"][aria-label*="star" i]',
-
                 # Other indicators
                 'div.m6QErb div.jftiEf',
-                '.HlvSq'
+                '.HlvSq',
             ]
 
             # Check if any verification selector is present
@@ -535,12 +718,12 @@ class GoogleReviewsScraper:
                     return True
 
             # URL check - if "review" appears in the URL
-            if "review" in driver.current_url.lower():
+            if 'review' in driver.current_url.lower():
                 return True
 
             return False
         except Exception as e:
-            log.debug(f"Error verifying reviews tab click: {e}")
+            log.debug(f'Error verifying reviews tab click: {e}')
             return False
 
     def set_sort(self, driver: Chrome, method: str):
@@ -548,7 +731,7 @@ class GoogleReviewsScraper:
         Set the sorting method for reviews with enhanced detection for the latest Google Maps UI.
         Works across different languages and UI variations, with robust error handling.
         """
-        if method == "relevance":
+        if method == 'relevance':
             log.info("Using default 'relevance' sort - no need to change sort order")
             return True  # Default order, no need to change
 
@@ -562,12 +745,10 @@ class GoogleReviewsScraper:
                 'div.m6QErb button.HQzyZ',
                 'button[jsaction*="pane.wfvdle84"]',
                 'div.fontBodyLarge.k5lwKb',  # The text element inside sort button
-
                 # Common attribute-based selectors
                 'button[aria-label*="Sort" i]',
                 'button[aria-label*="sort" i]',
                 'button[aria-expanded="false"][aria-haspopup="true"]',
-
                 # Multilingual selectors
                 'button[aria-label*="סדר" i]',  # Hebrew
                 'button[aria-label*="เรียง" i]',  # Thai
@@ -575,10 +756,9 @@ class GoogleReviewsScraper:
                 'button[aria-label*="Trier" i]',  # French
                 'button[aria-label*="Ordenar" i]',  # Spanish/Portuguese
                 'button[aria-label*="Sortieren" i]',  # German
-
                 # Parent container-based selectors
                 'div.m6QErb.Hk4XGb.XiKgde.tLjsW button',
-                'div.m6QErb div.XiKgde button'
+                'div.m6QErb div.XiKgde button',
             ]
 
             # Attempt to find the sort button
@@ -595,36 +775,67 @@ class GoogleReviewsScraper:
                                 continue
 
                             # Get button text and attributes for verification
-                            button_text = element.text.strip() if element.text else ""
-                            button_aria = element.get_attribute("aria-label") or ""
-                            button_class = element.get_attribute("class") or ""
+                            button_text = element.text.strip() if element.text else ''
+                            button_aria = element.get_attribute('aria-label') or ''
+                            button_class = element.get_attribute('class') or ''
 
                             # Skip buttons that are clearly not sort buttons
-                            negative_keywords = ["back", "next", "previous", "close", "cancel", "חזרה", "סגור", "ปิด"]
-                            if any(keyword in button_text.lower() or keyword in button_aria.lower()
-                                   for keyword in negative_keywords):
+                            negative_keywords = [
+                                'back',
+                                'next',
+                                'previous',
+                                'close',
+                                'cancel',
+                                'חזרה',
+                                'סגור',
+                                'ปิด',
+                            ]
+                            if any(
+                                keyword in button_text.lower()
+                                or keyword in button_aria.lower()
+                                for keyword in negative_keywords
+                            ):
                                 continue
 
                             # Positive detection for sort buttons
-                            sort_keywords = ["sort", "Sort", "SORT", "סידור", "เรียง", "排序", "trier", "ordenar", "sortieren"]
-                            has_sort_keyword = any(keyword in button_text or keyword in button_aria
-                                                 for keyword in sort_keywords)
+                            sort_keywords = [
+                                'sort',
+                                'Sort',
+                                'SORT',
+                                'סידור',
+                                'เรียง',
+                                '排序',
+                                'trier',
+                                'ordenar',
+                                'sortieren',
+                            ]
+                            has_sort_keyword = any(
+                                keyword in button_text or keyword in button_aria
+                                for keyword in sort_keywords
+                            )
 
                             # Check for common sort button classes
-                            has_sort_class = "HQzyZ" in button_class or "sort" in button_class.lower()
+                            has_sort_class = (
+                                'HQzyZ' in button_class
+                                or 'sort' in button_class.lower()
+                            )
 
                             # Check for aria attributes that indicate a dropdown
-                            has_dropdown_attrs = (element.get_attribute("aria-haspopup") == "true" or
-                                                element.get_attribute("aria-expanded") is not None)
+                            has_dropdown_attrs = (
+                                element.get_attribute('aria-haspopup') == 'true'
+                                or element.get_attribute('aria-expanded') is not None
+                            )
 
                             if has_sort_keyword or has_sort_class or has_dropdown_attrs:
                                 # Found a potential sort button
                                 sort_button = element
-                                log.info(f"Found sort button with selector: {selector}")
-                                log.info(f"Button text: '{button_text}', aria-label: '{button_aria}'")
+                                log.info(f'Found sort button with selector: {selector}')
+                                log.info(
+                                    f"Button text: '{button_text}', aria-label: '{button_aria}'"
+                                )
                                 break
                         except Exception as e:
-                            log.debug(f"Error checking element: {e}")
+                            log.debug(f'Error checking element: {e}')
                             continue
 
                     if sort_button:
@@ -637,7 +848,9 @@ class GoogleReviewsScraper:
             if not sort_button:
                 try:
                     # Look for the sort container by its distinctive classes
-                    containers = driver.find_elements(By.CSS_SELECTOR, 'div.m6QErb.Hk4XGb, div.XiKgde.tLjsW')
+                    containers = driver.find_elements(
+                        By.CSS_SELECTOR, 'div.m6QErb.Hk4XGb, div.XiKgde.tLjsW'
+                    )
                     for container in containers:
                         try:
                             # Find buttons within this container
@@ -645,18 +858,30 @@ class GoogleReviewsScraper:
                             for button in buttons:
                                 if button.is_displayed() and button.is_enabled():
                                     sort_button = button
-                                    log.info("Found sort button through container element")
+                                    log.info(
+                                        'Found sort button through container element'
+                                    )
                                     break
                         except:
                             continue
                         if sort_button:
                             break
                 except Exception as e:
-                    log.debug(f"Error finding button via container: {e}")
+                    log.debug(f'Error finding button via container: {e}')
 
             # If still no button found, try XPath approach with keywords
             if not sort_button:
-                xpath_terms = ["sort", "Sort", "סדר", "סידור", "เรียง", "排序", "Trier", "Ordenar", "Sortieren"]
+                xpath_terms = [
+                    'sort',
+                    'Sort',
+                    'סדר',
+                    'סידור',
+                    'เรียง',
+                    '排序',
+                    'Trier',
+                    'Ordenar',
+                    'Sortieren',
+                ]
                 for term in xpath_terms:
                     try:
                         xpath = f"//*[contains(text(), '{term}') or contains(@aria-label, '{term}')]"
@@ -665,7 +890,9 @@ class GoogleReviewsScraper:
                             try:
                                 if element.is_displayed() and element.is_enabled():
                                     sort_button = element
-                                    log.info(f"Found sort button with XPath term: '{term}'")
+                                    log.info(
+                                        f"Found sort button with XPath term: '{term}'"
+                                    )
                                     break
                             except:
                                 continue
@@ -678,18 +905,31 @@ class GoogleReviewsScraper:
             if not sort_button:
                 try:
                     # Look specifically in the reviews container area
-                    reviews_container = driver.find_elements(By.CSS_SELECTOR, 'div.m6QErb, div.DxyBCb')
+                    reviews_container = driver.find_elements(
+                        By.CSS_SELECTOR, 'div.m6QErb, div.DxyBCb'
+                    )
                     for container in reviews_container:
                         try:
                             # Find all buttons in this container
                             buttons = container.find_elements(By.TAG_NAME, 'button')
                             for button in buttons:
                                 try:
-                                    if (button.is_displayed() and button.is_enabled() and
-                                        (button.get_attribute("aria-haspopup") == "true" or
-                                         "dropdown" in (button.get_attribute("class") or "").lower())):
+                                    if (
+                                        button.is_displayed()
+                                        and button.is_enabled()
+                                        and (
+                                            button.get_attribute('aria-haspopup')
+                                            == 'true'
+                                            or 'dropdown'
+                                            in (
+                                                button.get_attribute('class') or ''
+                                            ).lower()
+                                        )
+                                    ):
                                         sort_button = button
-                                        log.info("Found potential sort button via fallback dropdown detection")
+                                        log.info(
+                                            'Found potential sort button via fallback dropdown detection'
+                                        )
                                         break
                                 except:
                                     continue
@@ -698,42 +938,56 @@ class GoogleReviewsScraper:
                         except:
                             continue
                 except Exception as e:
-                    log.debug(f"Error in fallback sort button detection: {e}")
+                    log.debug(f'Error in fallback sort button detection: {e}')
 
             # Final check - do we have a sort button?
             if not sort_button:
-                log.warning("No sort button found with any method - keeping default sort order")
+                log.warning(
+                    'No sort button found with any method - keeping default sort order'
+                )
                 return False
 
             # 2. Click the sort button to open dropdown menu
 
             # First ensure the button is in view
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", sort_button)
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});",
+                sort_button,
+            )
             time.sleep(0.8)  # Wait for scroll
 
             # Try multiple click methods
             click_methods = [
                 # Method 1: JavaScript click
-                lambda: driver.execute_script("arguments[0].click();", sort_button),
-
+                lambda: driver.execute_script('arguments[0].click();', sort_button),
                 # Method 2: Direct click
                 lambda: sort_button.click(),
-
                 # Method 3: ActionChains click with move first
-                lambda: ActionChains(driver).move_to_element(sort_button).pause(0.3).click().perform(),
-
+                lambda: ActionChains(driver)
+                .move_to_element(sort_button)
+                .pause(0.3)
+                .click()
+                .perform(),
                 # Method 4: Click on center of element
-                lambda: ActionChains(driver).move_to_element_with_offset(
-                    sort_button, sort_button.size['width'] // 2, sort_button.size['height'] // 2
-                ).click().perform(),
-
+                lambda: ActionChains(driver)
+                .move_to_element_with_offset(
+                    sort_button,
+                    sort_button.size['width'] // 2,
+                    sort_button.size['height'] // 2,
+                )
+                .click()
+                .perform(),
                 # Method 5: JavaScript focus and click
                 lambda: driver.execute_script(
-                    "arguments[0].focus(); setTimeout(function() { arguments[0].click(); }, 100);", sort_button
+                    'arguments[0].focus(); setTimeout(function() { arguments[0].click(); }, 100);',
+                    sort_button,
                 ),
-
                 # Method 6: Send RETURN key after focusing
-                lambda: ActionChains(driver).move_to_element(sort_button).click().send_keys(Keys.RETURN).perform()
+                lambda: ActionChains(driver)
+                .move_to_element(sort_button)
+                .click()
+                .send_keys(Keys.RETURN)
+                .perform(),
             ]
 
             # Try each click method
@@ -741,7 +995,7 @@ class GoogleReviewsScraper:
 
             for i, click_method in enumerate(click_methods):
                 try:
-                    log.info(f"Trying click method {i + 1} for sort button...")
+                    log.info(f'Trying click method {i + 1} for sort button...')
                     click_method()
                     time.sleep(1)  # Wait for menu to appear
 
@@ -749,15 +1003,15 @@ class GoogleReviewsScraper:
                     menu_opened = self.check_if_menu_opened(driver)
 
                     if menu_opened:
-                        log.info(f"Sort menu opened with click method {i + 1}")
+                        log.info(f'Sort menu opened with click method {i + 1}')
                         break
                 except Exception as e:
-                    log.debug(f"Click method {i + 1} failed: {e}")
+                    log.debug(f'Click method {i + 1} failed: {e}')
                     continue
 
             # If menu not opened, abort
             if not menu_opened:
-                log.warning("Failed to open sort menu - keeping default sort order")
+                log.warning('Failed to open sort menu - keeping default sort order')
                 # Try to reset state by clicking elsewhere
                 try:
                     ActionChains(driver).move_by_offset(50, 50).click().perform()
@@ -773,20 +1027,21 @@ class GoogleReviewsScraper:
                 'div[role="menuitemradio"]',
                 'div.fxNQSd[role="menuitemradio"]',
                 'div[role="menuitemradio"] div.mLuXec',  # Inner text container
-
                 # Generic menu item selectors (fallback)
                 '[role="menuitemradio"]',
                 '[role="menuitem"]',
-                'div[role="menu"] > div'
+                'div[role="menu"] > div',
             ]
 
             # Combined selector for efficiency
-            combined_selector = ", ".join(menu_item_selectors)
+            combined_selector = ', '.join(menu_item_selectors)
 
             try:
                 # Wait for menu items to appear
                 menu_items = WebDriverWait(driver, 5).until(
-                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, combined_selector))
+                    EC.presence_of_all_elements_located(
+                        (By.CSS_SELECTOR, combined_selector)
+                    )
                 )
 
                 # Process menu items to find matches
@@ -803,7 +1058,9 @@ class GoogleReviewsScraper:
                             # This is a top-level menu item
                             try:
                                 # Try to find text in the inner div.mLuXec element first
-                                text_elements = item.find_elements(By.CSS_SELECTOR, 'div.mLuXec')
+                                text_elements = item.find_elements(
+                                    By.CSS_SELECTOR, 'div.mLuXec'
+                                )
                                 if text_elements and text_elements[0].is_displayed():
                                     text = text_elements[0].text.strip()
                                     visible_items.append((item, text))
@@ -820,8 +1077,8 @@ class GoogleReviewsScraper:
                             try:
                                 text = item.text.strip()
                                 parent = driver.execute_script(
-                                    "return arguments[0].closest('[role=\"menuitemradio\"]');",
-                                    item
+                                    'return arguments[0].closest(\'[role="menuitemradio"]\');',
+                                    item,
                                 )
                                 if parent:
                                     visible_items.append((parent, text))
@@ -832,10 +1089,10 @@ class GoogleReviewsScraper:
                             text = item.text.strip()
                             visible_items.append((item, text))
                     except Exception as e:
-                        log.debug(f"Error processing menu item: {e}")
+                        log.debug(f'Error processing menu item: {e}')
                         continue
 
-                log.info(f"Found {len(visible_items)} visible menu items")
+                log.info(f'Found {len(visible_items)} visible menu items')
                 for i, (_, text) in enumerate(visible_items):
                     log.debug(f"  Menu item {i + 1}: '{text}'")
 
@@ -848,12 +1105,20 @@ class GoogleReviewsScraper:
 
                 for item, text in visible_items:
                     for label in wanted_labels:
-                        if (label in text or text in label or
-                                (len(text) > 0 and len(label) > 0 and
-                                 text.lower().startswith(label.lower()[:3]))):
+                        if (
+                            label in text
+                            or text in label
+                            or (
+                                len(text) > 0
+                                and len(label) > 0
+                                and text.lower().startswith(label.lower()[:3])
+                            )
+                        ):
                             target_item = item
                             matched_text = text
-                            log.info(f"Found matching menu item: '{text}' for '{label}'")
+                            log.info(
+                                f"Found matching menu item: '{text}' for '{label}'"
+                            )
                             break
                     if target_item:
                         break
@@ -861,42 +1126,53 @@ class GoogleReviewsScraper:
                 # 2. If no match found, try position-based selection
                 if not target_item and visible_items:
                     position_map = {
-                        "relevance": 0,  # Usually the first option
-                        "newest": 1,  # Usually the second option
-                        "highest": 2,  # Usually the third option
-                        "lowest": 3  # Usually the fourth option
+                        'relevance': 0,  # Usually the first option
+                        'newest': 1,  # Usually the second option
+                        'highest': 2,  # Usually the third option
+                        'lowest': 3,  # Usually the fourth option
                     }
 
                     pos = position_map.get(method, -1)
                     if pos >= 0 and pos < len(visible_items):
                         target_item, matched_text = visible_items[pos]
-                        log.info(f"Using position-based selection (position {pos}) for '{method}'")
+                        log.info(
+                            f"Using position-based selection (position {pos}) for '{method}'"
+                        )
 
                 # 3. If target found, click it
                 if target_item:
                     # Ensure item is in view
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", target_item)
+                    driver.execute_script(
+                        "arguments[0].scrollIntoView({block: 'center'});", target_item
+                    )
                     time.sleep(0.3)
 
                     # Try multiple click methods
                     click_success = False
                     click_methods = [
                         # Method 1: JavaScript click
-                        lambda: driver.execute_script("arguments[0].click();", target_item),
-
+                        lambda: driver.execute_script(
+                            'arguments[0].click();', target_item
+                        ),
                         # Method 2: Direct click
                         lambda: target_item.click(),
-
                         # Method 3: ActionChains click
-                        lambda: ActionChains(driver).move_to_element(target_item).click().perform(),
-
+                        lambda: ActionChains(driver)
+                        .move_to_element(target_item)
+                        .click()
+                        .perform(),
                         # Method 4: Center click
-                        lambda: ActionChains(driver).move_to_element_with_offset(
-                            target_item, target_item.size['width'] // 2, target_item.size['height'] // 2
-                        ).click().perform(),
-
+                        lambda: ActionChains(driver)
+                        .move_to_element_with_offset(
+                            target_item,
+                            target_item.size['width'] // 2,
+                            target_item.size['height'] // 2,
+                        )
+                        .click()
+                        .perform(),
                         # Method 5: JavaScript click with custom event
-                        lambda: driver.execute_script("""
+                        lambda: driver.execute_script(
+                            """
                             var el = arguments[0];
                             var evt = new MouseEvent('click', {
                                 bubbles: true,
@@ -904,7 +1180,9 @@ class GoogleReviewsScraper:
                                 view: window
                             });
                             el.dispatchEvent(evt);
-                        """, target_item)
+                        """,
+                            target_item,
+                        ),
                     ]
 
                     for i, click_method in enumerate(click_methods):
@@ -916,17 +1194,21 @@ class GoogleReviewsScraper:
                             still_open = self.check_if_menu_opened(driver)
                             if not still_open:
                                 click_success = True
-                                log.info(f"Successfully clicked menu item with method {i + 1}")
+                                log.info(
+                                    f'Successfully clicked menu item with method {i + 1}'
+                                )
                                 break
                         except Exception as e:
-                            log.debug(f"Menu item click method {i + 1} failed: {e}")
+                            log.debug(f'Menu item click method {i + 1} failed: {e}')
                             continue
 
                     if click_success:
                         log.info(f"Successfully set sort order to '{method}'")
                         return True
                     else:
-                        log.warning(f"Failed to click menu item - keeping default sort order")
+                        log.warning(
+                            f'Failed to click menu item - keeping default sort order'
+                        )
                 else:
                     log.warning(f"No matching menu item found for '{method}'")
 
@@ -939,14 +1221,14 @@ class GoogleReviewsScraper:
                 return False
 
             except TimeoutException:
-                log.warning("Timeout waiting for menu items")
+                log.warning('Timeout waiting for menu items')
                 return False
             except Exception as e:
-                log.warning(f"Error in menu item selection: {e}")
+                log.warning(f'Error in menu item selection: {e}')
                 return False
 
         except Exception as e:
-            log.warning(f"Error in set_sort method: {e}")
+            log.warning(f'Error in set_sort method: {e}')
             return False
 
     def check_if_menu_opened(self, driver):
@@ -961,7 +1243,7 @@ class GoogleReviewsScraper:
                 'div[role="menu"][id="action-menu"]',  # Exact match from provided HTML
                 'div.fontBodyLarge.yu5kgd[role="menu"]',  # Classes from provided HTML
                 'div.fxNQSd[role="menuitemradio"]',  # Menu item class
-                'div.yu5kgd[role="menu"]'  # Alternate class
+                'div.yu5kgd[role="menu"]',  # Alternate class
             ]
 
             for selector in specific_menu_selectors:
@@ -977,7 +1259,7 @@ class GoogleReviewsScraper:
             generic_menu_selectors = [
                 'div[role="menu"]',
                 'ul[role="menu"]',
-                '[role="listbox"]'
+                '[role="listbox"]',
             ]
 
             for selector in generic_menu_selectors:
@@ -995,7 +1277,7 @@ class GoogleReviewsScraper:
                 'div.fxNQSd',  # Class-based detection
                 'div.mLuXec',  # Text container class
                 '[role="menuitem"]',  # Generic menu items
-                '[role="option"]'  # Alternative role
+                '[role="option"]',  # Alternative role
             ]
 
             visible_items = 0
@@ -1005,7 +1287,9 @@ class GoogleReviewsScraper:
                     try:
                         if element.is_displayed():
                             visible_items += 1
-                            if visible_items >= 2:  # At least 2 menu items should be visible
+                            if (
+                                visible_items >= 2
+                            ):  # At least 2 menu items should be visible
                                 return True
                     except:
                         continue
@@ -1043,7 +1327,7 @@ class GoogleReviewsScraper:
                 if menu_detected:
                     return True
             except Exception as js_error:
-                log.debug(f"Error in JavaScript menu detection: {js_error}")
+                log.debug(f'Error in JavaScript menu detection: {js_error}')
 
             # 5. Last resort: check if any positioning styles were applied to elements
             # This can detect menu containers that have been positioned absolutely
@@ -1073,7 +1357,7 @@ class GoogleReviewsScraper:
             return False
 
         except Exception as e:
-            log.debug(f"Error checking menu state: {e}")
+            log.debug(f'Error checking menu state: {e}')
             return False
 
     def _rate_limit_sleep(self, newly_processed: int):
@@ -1084,7 +1368,9 @@ class GoogleReviewsScraper:
 
         # Hard cap (daily/session)
         if self.daily_max_reviews and self._processed_total >= self.daily_max_reviews:
-            log.info(f"Daily/session max ({self.daily_max_reviews}) reached – stopping early.")
+            log.info(
+                f'Daily/session max ({self.daily_max_reviews}) reached – stopping early.'
+            )
             raise StopIteration
         return
 
@@ -1098,23 +1384,29 @@ class GoogleReviewsScraper:
         time.sleep(base_delay)
 
         # Periodic longer pause
-        if (self.pause_every_n and
-                self._processed_total > 0 and
-                self._processed_total % self.pause_every_n == 0):
-            log.info(f"Pause checkpoint at {self._processed_total} reviews – sleeping {self.long_pause_seconds:.1f}s")
+        if (
+            self.pause_every_n
+            and self._processed_total > 0
+            and self._processed_total % self.pause_every_n == 0
+        ):
+            log.info(
+                f'Pause checkpoint at {self._processed_total} reviews – sleeping {self.long_pause_seconds:.1f}s'
+            )
             time.sleep(self.long_pause_seconds)
 
     def scrape(self):
         """Main scraper method"""
         start_time = time.time()
 
-        url = self.config.get("url")
-        headless = self.config.get("headless", True)
-        sort_by = self.config.get("sort_by", "relevance")
-        stop_on_match = self.config.get("stop_on_match", False)
+        url = self.config.get('url')
+        headless = self.config.get('headless', True)
+        sort_by = self.config.get('sort_by', 'relevance')
+        stop_on_match = self.config.get('stop_on_match', False)
 
-        log.info(f"Starting scraper with settings: headless={headless}, sort_by={sort_by}")
-        log.info(f"URL: {url}")
+        log.info(
+            f'Starting scraper with settings: headless={headless}, sort_by={sort_by}'
+        )
+        log.info(f'URL: {url}')
 
         docs: Dict[str, TransformedReview] = {}
 
@@ -1144,7 +1436,7 @@ class GoogleReviewsScraper:
             wait = WebDriverWait(driver, 20)  # Reduced from 40 to 20 for faster timeout
 
             driver.get(url)
-            wait.until(lambda d: "google.com/maps" in d.current_url)
+            wait.until(lambda d: 'google.com/maps' in d.current_url)
 
             self.dismiss_cookies(driver)
             self.click_reviews_tab(driver)
@@ -1155,22 +1447,28 @@ class GoogleReviewsScraper:
 
             # Use try-except to handle cases where the pane is not found
             try:
-                pane = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, PANE_SEL)))
+                pane = wait.until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, PANE_SEL))
+                )
             except TimeoutException:
-                log.warning("Could not find reviews pane. Page structure might have changed.")
+                log.warning(
+                    'Could not find reviews pane. Page structure might have changed.'
+                )
                 return []
 
-            pbar = tqdm(desc="Scraped", ncols=80, initial=len(seen))
+            pbar = tqdm(desc='Scraped', ncols=80, initial=len(seen))
             idle = 0
             processed_ids = set()  # Track processed IDs in current session
 
             # Prefetch selector to avoid repeated lookups
             try:
-                driver.execute_script("window.scrollablePane = arguments[0];", pane)
-                scroll_script = "window.scrollablePane.scrollBy(0, window.scrollablePane.scrollHeight);"
+                driver.execute_script('window.scrollablePane = arguments[0];', pane)
+                scroll_script = 'window.scrollablePane.scrollBy(0, window.scrollablePane.scrollHeight);'
             except Exception as e:
-                log.warning(f"Error setting up scroll script: {e}")
-                scroll_script = "window.scrollBy(0, 300);"  # Fallback to simple scrolling
+                log.warning(f'Error setting up scroll script: {e}')
+                scroll_script = (
+                    'window.scrollBy(0, 300);'  # Fallback to simple scrolling
+                )
 
             max_attempts = 10  # Limit the number of attempts to find reviews
             attempts = 0
@@ -1182,7 +1480,7 @@ class GoogleReviewsScraper:
 
                     # Check for valid cards
                     if len(cards) == 0:
-                        log.debug("No review cards found in this iteration")
+                        log.debug('No review cards found in this iteration')
                         attempts += 1
                         # Try scrolling anyway
                         driver.execute_script(scroll_script)
@@ -1191,9 +1489,13 @@ class GoogleReviewsScraper:
 
                     for c in cards:
                         try:
-                            cid = c.get_attribute("data-review-id")
+                            cid = c.get_attribute('data-review-id')
                             if not cid or cid in seen or cid in processed_ids:
-                                if stop_on_match and cid and (cid in seen or cid in processed_ids):
+                                if (
+                                    stop_on_match
+                                    and cid
+                                    and (cid in seen or cid in processed_ids)
+                                ):
                                     idle = 999
                                     break
                                 continue
@@ -1201,21 +1503,25 @@ class GoogleReviewsScraper:
                         except StaleElementReferenceException:
                             continue
                         except Exception as e:
-                            log.debug(f"Error getting review ID: {e}")
+                            log.debug(f'Error getting review ID: {e}')
                             continue
 
                     for card in fresh_cards:
                         try:
                             raw = RawReview.from_card(card)
-                            processed_ids.add(raw.id)  # Track this ID to avoid re-processing
+                            processed_ids.add(
+                                raw.id
+                            )  # Track this ID to avoid re-processing
                         except StaleElementReferenceException:
                             continue
                         except Exception:
-                            log.warning("⚠️ parse error – storing stub\n%s",
-                                        traceback.format_exc(limit=1).strip())
+                            log.warning(
+                                '⚠️ parse error – storing stub\n%s',
+                                traceback.format_exc(limit=1).strip(),
+                            )
                             try:
-                                raw_id = card.get_attribute("data-review-id") or ""
-                                raw = RawReview(id=raw_id, text="", lang="und")
+                                raw_id = card.get_attribute('data-review-id') or ''
+                                raw = RawReview(id=raw_id, text='', lang='und')
                                 processed_ids.add(raw_id)
                             except StaleElementReferenceException:
                                 continue
@@ -1237,9 +1543,9 @@ class GoogleReviewsScraper:
                     try:
                         driver.execute_script(scroll_script)
                     except Exception as e:
-                        log.warning(f"Error scrolling: {e}")
+                        log.warning(f'Error scrolling: {e}')
                         # Try a simpler scroll method
-                        driver.execute_script("window.scrollBy(0, 300);")
+                        driver.execute_script('window.scrollBy(0, 300);')
 
                     # Dynamic sleep: sleep less when processing many reviews
                     # sleep_time = 0.7 if len(fresh_cards) > 5 else 1.0
@@ -1252,15 +1558,21 @@ class GoogleReviewsScraper:
 
                 except StaleElementReferenceException:
                     # The pane or other element went stale, try to re-find
-                    log.debug("Stale element encountered, re-finding elements")
+                    log.debug('Stale element encountered, re-finding elements')
                     try:
-                        pane = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, PANE_SEL)))
-                        driver.execute_script("window.scrollablePane = arguments[0];", pane)
+                        pane = wait.until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, PANE_SEL))
+                        )
+                        driver.execute_script(
+                            'window.scrollablePane = arguments[0];', pane
+                        )
                     except Exception:
-                        log.warning("Could not re-find reviews pane after stale element")
+                        log.warning(
+                            'Could not re-find reviews pane after stale element'
+                        )
                         break
                 except Exception as e:
-                    log.warning(f"Error during review processing: {e}")
+                    log.warning(f'Error during review processing: {e}')
                     attempts += 1
                     time.sleep(1)
 
@@ -1268,25 +1580,25 @@ class GoogleReviewsScraper:
 
             # Save to MongoDB if enabled
             if self.use_mongodb and self.mongodb:
-                log.info("Saving reviews to MongoDB...")
+                log.info('Saving reviews to MongoDB...')
                 self.mongodb.save_reviews(docs)
 
             # Backup to JSON if enabled
             if self.backup_to_json:
-                log.info("Backing up to JSON...")
+                log.info('Backing up to JSON...')
                 self.json_storage.save_json_docs(docs)
                 self.json_storage.save_seen(seen)
 
-            log.info("✅ Finished – total unique reviews: %s", len(docs))
+            log.info('✅ Finished – total unique reviews: %s', len(docs))
 
             end_time = time.time()
             elapsed_time = end_time - start_time
-            log.info(f"Execution completed in {elapsed_time:.2f} seconds")
+            log.info(f'Execution completed in {elapsed_time:.2f} seconds')
 
             return list(docs.values())
 
         except Exception as e:
-            log.error(f"Error during scraping: {e}")
+            log.error(f'Error during scraping: {e}')
             log.error(traceback.format_exc())
             return []
 

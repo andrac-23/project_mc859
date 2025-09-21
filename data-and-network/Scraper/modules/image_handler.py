@@ -2,11 +2,11 @@
 Image downloading and handling for Google Maps Reviews Scraper.
 """
 
-import logging
-import re
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from pathlib import Path
-from typing import Dict, Any, Set, Tuple
+import re
+from typing import Any, Dict, Set, Tuple
 from urllib.parse import urlparse
 
 import requests
@@ -14,7 +14,7 @@ import requests
 from modules.s3_handler import S3Handler
 
 # Logger
-log = logging.getLogger("scraper")
+log = logging.getLogger('scraper')
 
 
 class ImageHandler:
@@ -22,24 +22,24 @@ class ImageHandler:
 
     def __init__(self, config: Dict[str, Any]):
         """Initialize image handler with configuration"""
-        self.image_dir = Path(config.get("image_dir", "review_images"))
-        self.max_workers = config.get("download_threads", 4)
-        self.store_local_paths = config.get("store_local_paths", True)
+        self.image_dir = Path(config.get('image_dir', 'review_images'))
+        self.max_workers = config.get('download_threads', 4)
+        self.store_local_paths = config.get('store_local_paths', True)
 
         # URL replacement settings
-        self.replace_urls = config.get("replace_urls", False)
-        self.custom_url_base = config.get("custom_url_base", "https://mycustomurl.com")
-        self.custom_url_profiles = config.get("custom_url_profiles", "/profiles/")
-        self.custom_url_reviews = config.get("custom_url_reviews", "/reviews/")
-        self.preserve_original_urls = config.get("preserve_original_urls", True)
+        self.replace_urls = config.get('replace_urls', False)
+        self.custom_url_base = config.get('custom_url_base', 'https://mycustomurl.com')
+        self.custom_url_profiles = config.get('custom_url_profiles', '/profiles/')
+        self.custom_url_reviews = config.get('custom_url_reviews', '/reviews/')
+        self.preserve_original_urls = config.get('preserve_original_urls', True)
 
         # Subdirectories for different image types
-        self.profile_dir = self.image_dir / "profiles"
-        self.review_dir = self.image_dir / "reviews"
-        
+        self.profile_dir = self.image_dir / 'profiles'
+        self.review_dir = self.image_dir / 'reviews'
+
         # Initialize S3 handler
         self.s3_handler = S3Handler(config)
-        self.use_s3 = config.get("use_s3", False)
+        self.use_s3 = config.get('use_s3', False)
 
     def ensure_directories(self):
         """Ensure all image directories exist"""
@@ -60,11 +60,11 @@ class ImageHandler:
     def get_filename_from_url(self, url: str, is_profile: bool = False) -> str:
         """Extract filename from URL and add .jpg extension"""
         if not url:
-            return ""
+            return ''
 
         # Skip our custom URLs
         if not self.is_not_custom_url(url):
-            return ""
+            return ''
 
         # For profile pictures
         if is_profile:
@@ -73,12 +73,12 @@ class ImageHandler:
             if len(parts) > 1:
                 filename = parts[-2] if parts[-1] == '' else parts[-1]
                 filename = filename.split('=')[0]
-                return f"{filename}.jpg"
+                return f'{filename}.jpg'
 
         # For review images
         url = url.split('=')[0]
         filename = url.split('/')[-1]
-        return f"{filename}.jpg"
+        return f'{filename}.jpg'
 
         # Fallback to using the last part of the URL path
         parsed = urlparse(url)
@@ -87,20 +87,20 @@ class ImageHandler:
 
         # Add .jpg extension if not present
         if not filename.lower().endswith('.jpg'):
-            filename += ".jpg"
+            filename += '.jpg'
 
         return filename
 
     def get_custom_url(self, filename: str, is_profile: bool = False) -> str:
         """Generate a custom URL for the image"""
         if not self.replace_urls or not filename:
-            return ""
+            return ''
 
         base_url = self.custom_url_base.rstrip('/')
         path = self.custom_url_profiles if is_profile else self.custom_url_reviews
         path = path.strip('/')
 
-        return f"{base_url}/{path}/{filename}"
+        return f'{base_url}/{path}/{filename}'
 
     def download_image(self, url_info: Tuple[str, bool]) -> Tuple[str, str, str]:
         """
@@ -116,12 +116,12 @@ class ImageHandler:
 
         # Skip our custom URLs
         if not self.is_not_custom_url(url):
-            return url, "", ""
+            return url, '', ''
 
         try:
             filename = self.get_filename_from_url(url, is_profile)
             if not filename:
-                return url, "", ""
+                return url, '', ''
 
             # Choose directory based on image type
             target_dir = self.profile_dir if is_profile else self.review_dir
@@ -134,7 +134,7 @@ class ImageHandler:
                 return url, filename, custom_url
 
             # Download the image
-            url = url.split("=")[0]
+            url = url.split('=')[0]
             response = requests.get(url, stream=True, timeout=10)
             response.raise_for_status()
 
@@ -147,10 +147,12 @@ class ImageHandler:
             return url, filename, custom_url
 
         except Exception as e:
-            log.error(f"Error downloading image from {url}: {e}")
-            return url, "", ""
+            log.error(f'Error downloading image from {url}: {e}')
+            return url, '', ''
 
-    def download_all_images(self, reviews: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def download_all_images(
+        self, reviews: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Download all images (review images and profile pictures) for all reviews.
 
@@ -169,36 +171,44 @@ class ImageHandler:
 
         for review in reviews.values():
             # Collect review images - exclude custom URLs
-            if "user_images" in review and isinstance(review["user_images"], list):
-                for url in review["user_images"]:
+            if 'user_images' in review and isinstance(review['user_images'], list):
+                for url in review['user_images']:
                     if self.is_not_custom_url(url):
                         review_urls.add(url)
                 # If we have original image URLs stored separately, add those too
-                if "original_image_urls" in review and isinstance(review["original_image_urls"], list):
-                    for orig_url in review["original_image_urls"]:
+                if 'original_image_urls' in review and isinstance(
+                    review['original_image_urls'], list
+                ):
+                    for orig_url in review['original_image_urls']:
                         if self.is_not_custom_url(orig_url):
                             review_urls.add(orig_url)
 
             # Collect profile pictures - exclude custom URLs
-            if "profile_picture" in review and review["profile_picture"]:
-                profile_url = review["profile_picture"]
+            if 'profile_picture' in review and review['profile_picture']:
+                profile_url = review['profile_picture']
                 if self.is_not_custom_url(profile_url):
                     profile_urls.add(profile_url)
                 # If we have original profile URL stored separately, add that too
-                if "original_profile_picture" in review and review["original_profile_picture"]:
-                    orig_profile_url = review["original_profile_picture"]
+                if (
+                    'original_profile_picture' in review
+                    and review['original_profile_picture']
+                ):
+                    orig_profile_url = review['original_profile_picture']
                     if self.is_not_custom_url(orig_profile_url):
                         profile_urls.add(orig_profile_url)
 
         # Prepare download tasks with URL type info
-        download_tasks = [(url, False) for url in review_urls] + [(url, True) for url in profile_urls]
+        download_tasks = [(url, False) for url in review_urls] + [
+            (url, True) for url in profile_urls
+        ]
 
         if not download_tasks:
-            log.info("No images to download")
+            log.info('No images to download')
             return reviews
 
         log.info(
-            f"Downloading {len(download_tasks)} images ({len(profile_urls)} profiles, {len(review_urls)} review images)...")
+            f'Downloading {len(download_tasks)} images ({len(profile_urls)} profiles, {len(review_urls)} review images)...'
+        )
 
         # Create URL to filename and URL to custom URL mappings
         url_to_filename = {}
@@ -216,23 +226,25 @@ class ImageHandler:
         # Upload to S3 if enabled
         s3_url_mapping = {}
         if self.use_s3 and self.s3_handler.enabled and url_to_filename:
-            log.info("Uploading images to S3...")
-            
+            log.info('Uploading images to S3...')
+
             # Prepare files for S3 upload
             files_to_upload = {}
             for url, filename in url_to_filename.items():
                 # Determine if it's a profile image
                 is_profile = any(url == profile_url for profile_url in profile_urls)
-                
+
                 # Get local file path
-                local_path = (self.profile_dir if is_profile else self.review_dir) / filename
-                
+                local_path = (
+                    self.profile_dir if is_profile else self.review_dir
+                ) / filename
+
                 if local_path.exists():
                     files_to_upload[filename] = (local_path, is_profile)
-            
+
             # Upload to S3
             s3_results = self.s3_handler.upload_images_batch(files_to_upload)
-            
+
             # Create mapping from original URL to S3 URL
             for url, filename in url_to_filename.items():
                 if filename in s3_results:
@@ -242,33 +254,44 @@ class ImageHandler:
         for review_id, review in reviews.items():
             # Find the original URLs to use for lookup - important for both user_images and profile_picture
             user_images_original = []
-            profile_picture_original = ""
+            profile_picture_original = ''
 
             # For user_images, either use original URLs if we have them, or the current user_images
-            if "original_image_urls" in review and isinstance(review["original_image_urls"], list):
-                user_images_original = review["original_image_urls"]
-            elif "user_images" in review and isinstance(review["user_images"], list):
-                user_images_original = review["user_images"].copy()
+            if 'original_image_urls' in review and isinstance(
+                review['original_image_urls'], list
+            ):
+                user_images_original = review['original_image_urls']
+            elif 'user_images' in review and isinstance(review['user_images'], list):
+                user_images_original = review['user_images'].copy()
 
             # For profile_picture, either use original URL if we have it, or the current profile_picture
-            if "original_profile_picture" in review and review["original_profile_picture"]:
-                profile_picture_original = review["original_profile_picture"]
-            elif "profile_picture" in review:
-                profile_picture_original = review["profile_picture"]
+            if (
+                'original_profile_picture' in review
+                and review['original_profile_picture']
+            ):
+                profile_picture_original = review['original_profile_picture']
+            elif 'profile_picture' in review:
+                profile_picture_original = review['profile_picture']
 
             # Process user_images
-            if "user_images" in review and isinstance(review["user_images"], list):
+            if 'user_images' in review and isinstance(review['user_images'], list):
                 # Add local image paths if enabled
                 if self.store_local_paths:
-                    local_images = [url_to_filename.get(url, "") for url in user_images_original
-                                    if url and self.is_not_custom_url(url)]
-                    review["local_images"] = [img for img in local_images if img]
+                    local_images = [
+                        url_to_filename.get(url, '')
+                        for url in user_images_original
+                        if url and self.is_not_custom_url(url)
+                    ]
+                    review['local_images'] = [img for img in local_images if img]
 
                 # Replace URLs if enabled
                 if self.replace_urls:
                     # Store original URLs if needed and not already stored
-                    if self.preserve_original_urls and "original_image_urls" not in review:
-                        review["original_image_urls"] = review["user_images"].copy()
+                    if (
+                        self.preserve_original_urls
+                        and 'original_image_urls' not in review
+                    ):
+                        review['original_image_urls'] = review['user_images'].copy()
 
                     # Create custom URLs for each image
                     custom_images = []
@@ -283,41 +306,53 @@ class ImageHandler:
 
                     # Replace with custom URLs if we have them
                     if custom_images:
-                        review["user_images"] = custom_images
+                        review['user_images'] = custom_images
 
             # Process profile_picture
-            if "profile_picture" in review and review["profile_picture"]:
+            if 'profile_picture' in review and review['profile_picture']:
                 # Add local profile picture path if enabled
-                if self.store_local_paths and profile_picture_original in url_to_filename:
-                    review["local_profile_picture"] = url_to_filename[profile_picture_original]
+                if (
+                    self.store_local_paths
+                    and profile_picture_original in url_to_filename
+                ):
+                    review['local_profile_picture'] = url_to_filename[
+                        profile_picture_original
+                    ]
 
                 # Replace profile_picture URL if enabled
                 if self.replace_urls:
                     # Store original URL if needed and not already stored
-                    if self.preserve_original_urls and "original_profile_picture" not in review:
-                        review["original_profile_picture"] = review["profile_picture"]
+                    if (
+                        self.preserve_original_urls
+                        and 'original_profile_picture' not in review
+                    ):
+                        review['original_profile_picture'] = review['profile_picture']
 
                     # Replace with S3 URL if available, otherwise use custom URL
                     if profile_picture_original in s3_url_mapping:
-                        review["profile_picture"] = s3_url_mapping[profile_picture_original]
+                        review['profile_picture'] = s3_url_mapping[
+                            profile_picture_original
+                        ]
                     elif profile_picture_original in url_to_custom_url:
-                        review["profile_picture"] = url_to_custom_url[profile_picture_original]
-                    elif not self.is_not_custom_url(review["profile_picture"]):
+                        review['profile_picture'] = url_to_custom_url[
+                            profile_picture_original
+                        ]
+                    elif not self.is_not_custom_url(review['profile_picture']):
                         # If current URL is already a custom URL, keep it
                         pass
                     elif profile_picture_original:
                         # If we don't have a custom URL but have a filename, generate one
-                        filename = url_to_filename.get(profile_picture_original, "")
+                        filename = url_to_filename.get(profile_picture_original, '')
                         if filename:
                             custom_url = self.get_custom_url(filename, True)
                             if custom_url:
-                                review["profile_picture"] = custom_url
+                                review['profile_picture'] = custom_url
 
-        log.info(f"Downloaded {len(url_to_filename)} images")
+        log.info(f'Downloaded {len(url_to_filename)} images')
         if self.use_s3 and s3_url_mapping:
-            log.info(f"Uploaded {len(s3_url_mapping)} images to S3")
+            log.info(f'Uploaded {len(s3_url_mapping)} images to S3')
         if self.replace_urls:
             total_replaced = len(s3_url_mapping) + len(url_to_custom_url)
-            log.info(f"Replaced URLs for {total_replaced} images")
+            log.info(f'Replaced URLs for {total_replaced} images')
 
         return reviews

@@ -24,3 +24,37 @@ dependencies = [
     "vadersentiment>=3.3.2",
     "webdriver-manager==4.0.2",
 ]
+
+[tool.ruff]
+line-length=88
+indent-width=4
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "ARG", "I"]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.isort]
+known-first-party = ["Network", "Places", "PlacesAPI", "Scraper", "Sentiments", "Utils"]
+known-third-party = ["requests", "numpy", "dacite"]
+combine-as-imports = true
+force-sort-within-sections = true
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13.1",
+]

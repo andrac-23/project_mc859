@@ -1,17 +1,20 @@
 """
 Utility functions for Google Maps Reviews Scraper.
 """
+
 import datetime
+from datetime import timezone
+from functools import lru_cache
 import logging
 import re
 import time
-from datetime import timezone
-from functools import lru_cache
 from typing import List
 
-from selenium.common.exceptions import (NoSuchElementException,
-                                        StaleElementReferenceException,
-                                        TimeoutException)
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    StaleElementReferenceException,
+    TimeoutException,
+)
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
@@ -19,25 +22,27 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 # Logger
-log = logging.getLogger("scraper")
+log = logging.getLogger('scraper')
 
 # Constants for language detection
-HEB_CHARS = re.compile(r"[\u0590-\u05FF]")
-THAI_CHARS = re.compile(r"[\u0E00-\u0E7F]")
+HEB_CHARS = re.compile(r'[\u0590-\u05FF]')
+THAI_CHARS = re.compile(r'[\u0E00-\u0E7F]')
 
 
 @lru_cache(maxsize=1024)
 def detect_lang(txt: str) -> str:
     """Detect language based on character sets"""
-    if HEB_CHARS.search(txt):  return "he"
-    if THAI_CHARS.search(txt): return "th"
-    return "en"
+    if HEB_CHARS.search(txt):
+        return 'he'
+    if THAI_CHARS.search(txt):
+        return 'th'
+    return 'en'
 
 
 @lru_cache(maxsize=128)
 def safe_int(s: str | None) -> int:
     """Safely convert string to integer, returning 0 if not possible"""
-    m = re.search(r"\d+", s or "")
+    m = re.search(r'\d+', s or '')
     return int(m.group()) if m else 0
 
 
@@ -56,11 +61,11 @@ def first_text(el: WebElement, css: str) -> str:
     """Get text from the first matching element that has non-empty text"""
     for e in try_find(el, css, all=True):
         try:
-            if (t := e.text.strip()):
+            if t := e.text.strip():
                 return t
         except StaleElementReferenceException:
             continue
-    return ""
+    return ''
 
 
 def parse_date_to_iso(date_str: str) -> str:
@@ -69,32 +74,56 @@ def parse_date_to_iso(date_str: str) -> str:
     Returns a best-effort ISO string, or empty string if parsing fails.
     """
     if not date_str:
-        return ""
+        return ''
 
     try:
         now = datetime.now(timezone.utc)
 
         # Handle relative dates
-        if "ago" in date_str.lower():
+        if 'ago' in date_str.lower():
             # For simplicity, map to approximate dates
-            if "minute" in date_str.lower():
-                minutes = int(re.search(r'\d+', date_str).group()) if re.search(r'\d+', date_str) else 1
+            if 'minute' in date_str.lower():
+                minutes = (
+                    int(re.search(r'\d+', date_str).group())
+                    if re.search(r'\d+', date_str)
+                    else 1
+                )
                 dt = now.replace(microsecond=0) - timezone.timedelta(minutes=minutes)
-            elif "hour" in date_str.lower():
-                hours = int(re.search(r'\d+', date_str).group()) if re.search(r'\d+', date_str) else 1
+            elif 'hour' in date_str.lower():
+                hours = (
+                    int(re.search(r'\d+', date_str).group())
+                    if re.search(r'\d+', date_str)
+                    else 1
+                )
                 dt = now.replace(microsecond=0) - timezone.timedelta(hours=hours)
-            elif "day" in date_str.lower():
-                days = int(re.search(r'\d+', date_str).group()) if re.search(r'\d+', date_str) else 1
+            elif 'day' in date_str.lower():
+                days = (
+                    int(re.search(r'\d+', date_str).group())
+                    if re.search(r'\d+', date_str)
+                    else 1
+                )
                 dt = now.replace(microsecond=0) - timezone.timedelta(days=days)
-            elif "week" in date_str.lower():
-                weeks = int(re.search(r'\d+', date_str).group()) if re.search(r'\d+', date_str) else 1
+            elif 'week' in date_str.lower():
+                weeks = (
+                    int(re.search(r'\d+', date_str).group())
+                    if re.search(r'\d+', date_str)
+                    else 1
+                )
                 dt = now.replace(microsecond=0) - timezone.timedelta(weeks=weeks)
-            elif "month" in date_str.lower():
-                months = int(re.search(r'\d+', date_str).group()) if re.search(r'\d+', date_str) else 1
+            elif 'month' in date_str.lower():
+                months = (
+                    int(re.search(r'\d+', date_str).group())
+                    if re.search(r'\d+', date_str)
+                    else 1
+                )
                 # Approximate months as 30 days
                 dt = now.replace(microsecond=0) - timezone.timedelta(days=30 * months)
-            elif "year" in date_str.lower():
-                years = int(re.search(r'\d+', date_str).group()) if re.search(r'\d+', date_str) else 1
+            elif 'year' in date_str.lower():
+                years = (
+                    int(re.search(r'\d+', date_str).group())
+                    if re.search(r'\d+', date_str)
+                    else 1
+                )
                 # Approximate years as 365 days
                 dt = now.replace(microsecond=0) - timezone.timedelta(days=365 * years)
             else:
@@ -108,21 +137,23 @@ def parse_date_to_iso(date_str: str) -> str:
         return dt.isoformat()
     except Exception:
         # If parsing fails, return empty string
-        return ""
+        return ''
 
 
 def first_attr(el: WebElement, css: str, attr: str) -> str:
     """Get attribute value from the first matching element that has a non-empty value"""
     for e in try_find(el, css, all=True):
         try:
-            if (v := (e.get_attribute(attr) or "").strip()):
+            if v := (e.get_attribute(attr) or '').strip():
                 return v
         except StaleElementReferenceException:
             continue
-    return ""
+    return ''
 
 
-def click_if(driver: Chrome, css: str, delay: float = .25, timeout: float = 5.0) -> bool:
+def click_if(
+    driver: Chrome, css: str, delay: float = 0.25, timeout: float = 5.0
+) -> bool:
     """
     Click element if it exists and is clickable, with timeout and better error handling.
 
@@ -163,14 +194,16 @@ def click_if(driver: Chrome, css: str, delay: float = .25, timeout: float = 5.0)
             return False
 
     except Exception as e:
-        log.debug(f"Error in click_if: {str(e)}")
+        log.debug(f'Error in click_if: {str(e)}')
         return False
 
 
 def get_current_iso_date() -> str:
     """Return current UTC time in ISO format."""
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).isoformat()
+
 
 # """
 # Utility functions for Google Maps Reviews Scraper.
