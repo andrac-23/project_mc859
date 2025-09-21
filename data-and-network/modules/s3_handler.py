@@ -3,13 +3,14 @@ S3 upload handler for Google Maps Reviews Scraper.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import boto3
 from botocore.exceptions import ClientError
 
-log = logging.getLogger('scraper')
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 
 class S3Handler:
@@ -38,7 +39,7 @@ class S3Handler:
 
         # Validate required settings
         if not self.bucket_name:
-            log.error('S3 bucket_name is required when use_s3 is enabled')
+            logger.error('S3 bucket_name is required when use_s3 is enabled')
             self.enabled = False
             return
 
@@ -59,22 +60,22 @@ class S3Handler:
 
             # Test connection by checking if bucket exists
             self.s3_client.head_bucket(Bucket=self.bucket_name)
-            log.info(
+            logger.info(
                 f'S3 handler initialized successfully for bucket: {self.bucket_name}'
             )
 
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code == '404':
-                log.error(f"S3 bucket '{self.bucket_name}' not found")
+                logger.error(f"S3 bucket '{self.bucket_name}' not found")
             elif error_code == '403':
-                log.error(f"Access denied to S3 bucket '{self.bucket_name}'")
+                logger.error(f"Access denied to S3 bucket '{self.bucket_name}'")
             else:
-                log.error(f'Error connecting to S3: {e}')
+                logger.error(f'Error connecting to S3: {e}')
             self.enabled = False
 
         except Exception as e:
-            log.error(f'Error initializing S3 client: {e}')
+            logger.error(f'Error initializing S3 client: {e}')
             self.enabled = False
 
     def get_s3_url(self, key: str) -> str:
@@ -101,7 +102,7 @@ class S3Handler:
             return None
 
         if not local_path.exists():
-            log.warning(f'Local file does not exist: {local_path}')
+            logger.warning(f'Local file does not exist: {local_path}')
             return None
 
         try:
@@ -123,18 +124,18 @@ class S3Handler:
             if self.delete_local_after_upload:
                 try:
                     local_path.unlink()
-                    log.debug(f'Deleted local file: {local_path}')
+                    logger.debug(f'Deleted local file: {local_path}')
                 except Exception as e:
-                    log.warning(f'Failed to delete local file {local_path}: {e}')
+                    logger.warning(f'Failed to delete local file {local_path}: {e}')
 
-            log.debug(f'Uploaded {local_path} to s3://{self.bucket_name}/{s3_key}')
+            logger.debug(f'Uploaded {local_path} to s3://{self.bucket_name}/{s3_key}')
             return s3_url
 
         except ClientError as e:
-            log.error(f'Failed to upload {local_path} to S3: {e}')
+            logger.error(f'Failed to upload {local_path} to S3: {e}')
             return None
         except Exception as e:
-            log.error(f'Unexpected error uploading {local_path} to S3: {e}')
+            logger.error(f'Unexpected error uploading {local_path} to S3: {e}')
             return None
 
     def upload_image(
@@ -181,6 +182,6 @@ class S3Handler:
                 results[filename] = s3_url
 
         if results:
-            log.info(f'Successfully uploaded {len(results)} images to S3')
+            logger.info(f'Successfully uploaded {len(results)} images to S3')
 
         return results

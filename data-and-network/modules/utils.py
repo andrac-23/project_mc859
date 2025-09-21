@@ -8,6 +8,7 @@ from datetime import timezone
 from functools import lru_cache
 import json
 import logging
+import os
 import re
 import time
 from typing import List
@@ -24,7 +25,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 # Logger
-log = logging.getLogger('scraper')
+log = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
+
 
 # Constants for language detection
 HEB_CHARS = re.compile(r'[\u0590-\u05FF]')

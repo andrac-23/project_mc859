@@ -10,6 +10,8 @@ import networkx as nx
 from PlacesAPI.main import Place
 import Shared.main as utils
 
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
+
 
 @dataclass
 class Attraction:
@@ -109,7 +111,7 @@ def save_graph():
 
 
 def reset_network_data():
-    logging.info('Resetting existing Network data...')
+    logger.info('Resetting existing Network data...')
 
     global AttractionSentimentNet, adjectives_dict
     AttractionSentimentNet = nx.Graph()
@@ -119,4 +121,4 @@ def reset_network_data():
     if os.path.exists(EXISTING_EMOTIONS_PATH):
         os.remove(EXISTING_EMOTIONS_PATH)
 
-    logging.info('Network data reset complete. ✅')
+    logger.info('Network data reset complete. ✅')

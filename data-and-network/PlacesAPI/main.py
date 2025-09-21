@@ -5,9 +5,9 @@ import logging
 import os
 from typing import Dict, List, Literal
 
-from dotenv import load_dotenv
 import requests
 
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 MAX_THREADS = 4
 
 
@@ -32,7 +32,6 @@ class Location:
     longitude: float
 
 
-load_dotenv()
 PLACES_API_KEY = os.getenv('PLACES_API_KEY')
 if not PLACES_API_KEY:
     raise ValueError('PLACES_API_KEY not found in environment variables')
@@ -82,7 +81,7 @@ def getNearbyAttractionsFromType(
     if response.status_code == 200:
         return response.json().get('results', [])
     else:
-        logging.error(
+        logger.error(
             f'Error fetching nearby attractions: {response.status_code} - {response.text}'
         )
         return NearbySearchResponse(places=[])
@@ -100,7 +99,7 @@ def getNearbyAttractions(location: Location) -> List[Place]:
                 result = future.result()
                 responses.extend(result)
             except Exception as e:
-                logging.error(f'Error fetching attractions: {e}')
+                logger.error(f'Error fetching attractions: {e}')
 
     attractions: List[Place] = []
     for i in range(len(responses)):

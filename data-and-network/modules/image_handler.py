@@ -4,6 +4,7 @@ Image downloading and handling for Google Maps Reviews Scraper.
 
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, Set, Tuple
 from urllib.parse import urlparse
@@ -13,7 +14,7 @@ import requests
 from modules.s3_handler import S3Handler
 
 # Logger
-log = logging.getLogger('scraper')
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 
 class ImageHandler:
@@ -146,7 +147,7 @@ class ImageHandler:
             return url, filename, custom_url
 
         except Exception as e:
-            log.error(f'Error downloading image from {url}: {e}')
+            logger.error(f'Error downloading image from {url}: {e}')
             return url, '', ''
 
     def download_all_images(
@@ -202,10 +203,10 @@ class ImageHandler:
         ]
 
         if not download_tasks:
-            log.info('No images to download')
+            logger.info('No images to download')
             return reviews
 
-        log.info(
+        logger.info(
             f'Downloading {len(download_tasks)} images ({len(profile_urls)} profiles, {len(review_urls)} review images)...'
         )
 
@@ -225,7 +226,7 @@ class ImageHandler:
         # Upload to S3 if enabled
         s3_url_mapping = {}
         if self.use_s3 and self.s3_handler.enabled and url_to_filename:
-            log.info('Uploading images to S3...')
+            logger.info('Uploading images to S3...')
 
             # Prepare files for S3 upload
             files_to_upload = {}
@@ -347,11 +348,11 @@ class ImageHandler:
                             if custom_url:
                                 review['profile_picture'] = custom_url
 
-        log.info(f'Downloaded {len(url_to_filename)} images')
+        logger.info(f'Downloaded {len(url_to_filename)} images')
         if self.use_s3 and s3_url_mapping:
-            log.info(f'Uploaded {len(s3_url_mapping)} images to S3')
+            logger.info(f'Uploaded {len(s3_url_mapping)} images to S3')
         if self.replace_urls:
             total_replaced = len(s3_url_mapping) + len(url_to_custom_url)
-            log.info(f'Replaced URLs for {total_replaced} images')
+            logger.info(f'Replaced URLs for {total_replaced} images')
 
         return reviews

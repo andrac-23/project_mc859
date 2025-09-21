@@ -4,11 +4,12 @@ Date conversion utilities for Google Maps reviews.
 
 from datetime import datetime, timedelta
 import logging
+import os
 import re
 from typing import Any, Dict, Optional
 
 # Logger
-log = logging.getLogger('scraper')
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 
 def relative_to_datetime(date_str: str, lang: str = 'en') -> Optional[datetime]:
@@ -36,7 +37,7 @@ def relative_to_datetime(date_str: str, lang: str = 'en') -> Optional[datetime]:
         # Parse the ISO format into datetime
         return datetime.fromisoformat(iso_date)
     except Exception as e:
-        log.debug(f"Failed to convert relative date '{date_str}': {e}")
+        logger.debug(f"Failed to convert relative date '{date_str}': {e}")
         return None
 
 
@@ -105,7 +106,7 @@ class DateConverter:
         Returns:
             Reviews with dates converted to datetime objects
         """
-        log.info('Converting string dates to datetime objects...')
+        logger.info('Converting string dates to datetime objects...')
 
         for review_id, review in reviews.items():
             reviews[review_id] = DateConverter.convert_dates_in_document(review)

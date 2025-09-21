@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 import logging
+import os
 from pathlib import Path
 import ssl
 from typing import Any, Dict, List, Literal, Set
@@ -21,7 +22,7 @@ from modules.utils import detect_lang, get_current_iso_date
 ssl._create_default_https_context = ssl._create_unverified_context  # macOS SSL fix
 
 # Logger
-log = logging.getLogger('scraper')
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 RAW_LANG = 'en'
 
@@ -81,10 +82,10 @@ class MongoDBStorage:
             db = self.client[self.db_name]
             self.collection = db[self.collection_name]
             self.connected = True
-            log.info(f'Connected to MongoDB: {self.db_name}.{self.collection_name}')
+            logger.info(f'Connected to MongoDB: {self.db_name}.{self.collection_name}')
             return True
         except Exception as e:
-            log.error(f'Failed to connect to MongoDB: {e}')
+            logger.error(f'Failed to connect to MongoDB: {e}')
             self.connected = False
             return False
 
@@ -97,7 +98,7 @@ class MongoDBStorage:
     def fetch_existing_reviews(self) -> Dict[str, Dict[str, Any]]:
         """Fetch existing reviews from MongoDB"""
         if not self.connected and not self.connect():
-            log.warning('Cannot fetch existing reviews - MongoDB connection failed')
+            logger.warning('Cannot fetch existing reviews - MongoDB connection failed')
             return {}
 
         try:
@@ -106,20 +107,20 @@ class MongoDBStorage:
                 review_id = doc.get('review_id')
                 if review_id:
                     reviews[review_id] = doc
-            log.info(f'Fetched {len(reviews)} existing reviews from MongoDB')
+            logger.info(f'Fetched {len(reviews)} existing reviews from MongoDB')
             return reviews
         except Exception as e:
-            log.error(f'Error fetching reviews from MongoDB: {e}')
+            logger.error(f'Error fetching reviews from MongoDB: {e}')
             return {}
 
     def save_reviews(self, reviews: Dict[str, Dict[str, Any]]):
         """Save reviews to MongoDB using bulk operations"""
         if not reviews:
-            log.info('No reviews to save to MongoDB')
+            logger.info('No reviews to save to MongoDB')
             return
 
         if not self.connected and not self.connect():
-            log.warning('Cannot save reviews - MongoDB connection failed')
+            logger.warning('Cannot save reviews - MongoDB connection failed')
             return
 
         try:
@@ -156,7 +157,7 @@ class MongoDBStorage:
 
             # Add custom parameters to each document
             if self.custom_params:
-                log.info(
+                logger.info(
                     f'Adding custom parameters to {len(processed_reviews)} documents'
                 )
                 for review in processed_reviews.values():
@@ -180,11 +181,11 @@ class MongoDBStorage:
 
             if operations:
                 result = self.collection.bulk_write(operations)
-                log.info(
+                logger.info(
                     f'MongoDB: Upserted {result.upserted_count}, modified {result.modified_count} reviews'
                 )
         except Exception as e:
-            log.error(f'Error saving reviews to MongoDB: {e}')
+            logger.error(f'Error saving reviews to MongoDB: {e}')
 
 
 class JSONStorage:
@@ -211,7 +212,7 @@ class JSONStorage:
             # Index by review_id for fast lookups
             return {d.get('review_id', ''): d for d in data if d.get('review_id')}
         except json.JSONDecodeError:
-            log.warning('⚠️ Error reading JSON file, starting with empty data')
+            logger.warning('⚠️ Error reading JSON file, starting with empty data')
             return {}
 
     def save_json_docs(self, docs: Dict[str, Dict[str, Any]]):
@@ -248,7 +249,7 @@ class JSONStorage:
 
         # Add custom parameters to each document
         if self.custom_params:
-            log.info(f'Adding custom parameters to {len(processed_docs)} documents')
+            logger.info(f'Adding custom parameters to {len(processed_docs)} documents')
             for review in processed_docs.values():
                 for key, value in self.custom_params.items():
                     review[key] = value

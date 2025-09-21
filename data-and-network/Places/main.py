@@ -9,6 +9,8 @@ import pandas as pd
 
 import Shared.main as utils
 
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
+
 
 @dataclass
 class City:
@@ -112,7 +114,7 @@ def get_places(top_countries=10, top_cities=50) -> Places:
             saved_data = json.load(f)
             saved_data = from_dict(data_class=Places, data=saved_data)
 
-            logging.info(
+            logger.info(
                 'Loaded saved places (continents, countries and cities) results from previous run.'
             )
 
@@ -195,7 +197,7 @@ def get_places(top_countries=10, top_cities=50) -> Places:
 
     # Save processed and separated places to JSON
     if os.path.exists(SAVED_JSON_PATH):
-        logging.info(
+        logger.info(
             'Saving places (continents, countries and cities) results from current run.'
         )
         with open(SAVED_JSON_PATH, 'w') as f:
@@ -205,11 +207,11 @@ def get_places(top_countries=10, top_cities=50) -> Places:
 
 
 def reset_places_data():
-    logging.info('Resetting existing Places data...')
+    logger.info('Resetting existing Places data...')
 
     if os.path.exists(SAVED_CSV_PATH):
         os.remove(SAVED_CSV_PATH)
     if os.path.exists(SAVED_JSON_PATH):
         os.remove(SAVED_JSON_PATH)
 
-    logging.info('Places data reset complete. ✅')
+    logger.info('Places data reset complete. ✅')

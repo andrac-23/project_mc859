@@ -31,7 +31,7 @@ from modules.data_storage import (
 from modules.models import RawReview
 
 # Logger
-log = logging.getLogger('scraper')
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 # CSS Selectors
 PANE_SEL = 'div[role="main"] div.m6QErb.DxyBCb.kA9KIf.dS8AEf'
@@ -366,51 +366,53 @@ class GoogleReviewsScraper:
             opts.add_argument('--headless=new')
 
         # Log platform information for debugging
-        log.info(f'Platform: {platform.platform()}')
-        log.info(f'Python version: {platform.python_version()}')
+        logger.info(f'Platform: {platform.platform()}')
+        logger.info(f'Python version: {platform.python_version()}')
 
         # If in container, use environment-provided binaries
         if in_container:
             chrome_binary = os.environ.get('CHROME_BIN')
             chromedriver_path = os.environ.get('CHROMEDRIVER_PATH')
 
-            log.info('Container environment detected')
-            log.info(f'Chrome binary: {chrome_binary}')
-            log.info(f'ChromeDriver path: {chromedriver_path}')
+            logger.info('Container environment detected')
+            logger.info(f'Chrome binary: {chrome_binary}')
+            logger.info(f'ChromeDriver path: {chromedriver_path}')
 
             if chrome_binary and os.path.exists(chrome_binary):
-                log.info(f'Using Chrome binary from environment: {chrome_binary}')
+                logger.info(f'Using Chrome binary from environment: {chrome_binary}')
                 opts.binary_location = chrome_binary
 
             try:
                 # Try creating Chrome driver with undetected_chromedriver
-                log.info('Attempting to create undetected_chromedriver instance')
+                logger.info('Attempting to create undetected_chromedriver instance')
                 driver = uc.Chrome(options=opts)
-                log.info('Successfully created undetected_chromedriver instance')
+                logger.info('Successfully created undetected_chromedriver instance')
             except Exception as e:
                 # Fall back to regular Selenium if undetected_chromedriver fails
-                log.warning(f'Failed to create undetected_chromedriver instance: {e}')
-                log.info('Falling back to regular Selenium Chrome')
+                logger.warning(
+                    f'Failed to create undetected_chromedriver instance: {e}'
+                )
+                logger.info('Falling back to regular Selenium Chrome')
 
                 # Import Selenium webdriver here to avoid potential import issues
                 from selenium import webdriver
                 from selenium.webdriver.chrome.service import Service
 
                 if chromedriver_path and os.path.exists(chromedriver_path):
-                    log.info(f'Using ChromeDriver from path: {chromedriver_path}')
+                    logger.info(f'Using ChromeDriver from path: {chromedriver_path}')
                     service = Service(executable_path=chromedriver_path)
                     driver = webdriver.Chrome(service=service, options=opts)
                 else:
-                    log.info('Using default ChromeDriver')
+                    logger.info('Using default ChromeDriver')
                     driver = webdriver.Chrome(options=opts)
         else:
             # On regular OS, use default undetected_chromedriver
-            log.info('Using standard undetected_chromedriver setup')
+            logger.info('Using standard undetected_chromedriver setup')
             driver = uc.Chrome(options=opts)
 
         # Set page load timeout to avoid hanging
         driver.set_page_load_timeout(30)
-        log.info('Chrome driver setup completed successfully')
+        logger.info('Chrome driver setup completed successfully')
         return driver
 
     def dismiss_cookies(self, driver: Chrome):
@@ -423,7 +425,7 @@ class GoogleReviewsScraper:
             WebDriverWait(driver, 3).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, COOKIE_BTN))
             )
-            log.info('Cookie consent dialog found, attempting to dismiss')
+            logger.info('Cookie consent dialog found, attempting to dismiss')
 
             # Get elements again after waiting to avoid stale references
             elements = driver.find_elements(By.CSS_SELECTOR, COOKIE_BTN)
@@ -431,16 +433,16 @@ class GoogleReviewsScraper:
                 try:
                     if elem.is_displayed():
                         elem.click()
-                        log.info('Cookie dialog dismissed')
+                        logger.info('Cookie dialog dismissed')
                         return True
                 except Exception as e:
-                    log.debug(f'Error clicking cookie button: {e}')
+                    logger.debug(f'Error clicking cookie button: {e}')
                     continue
         except TimeoutException:
             # This is expected if no cookie dialog is present
-            log.debug('No cookie consent dialog detected')
+            logger.debug('No cookie consent dialog detected')
         except Exception as e:
-            log.debug(f'Error handling cookie dialog: {e}')
+            logger.debug(f'Error handling cookie dialog: {e}')
 
         return False
 
@@ -519,7 +521,7 @@ class GoogleReviewsScraper:
         except StaleElementReferenceException:
             return False
         except Exception as e:
-            log.debug(f'Error in is_reviews_tab: {e}')
+            logger.debug(f'Error in is_reviews_tab: {e}')
             return False
 
     def click_reviews_tab(self, driver: Chrome):
@@ -572,7 +574,7 @@ class GoogleReviewsScraper:
                         continue
 
                     # Found a reviews tab, attempt to click it with multiple methods
-                    log.info(
+                    logger.info(
                         f"Found potential reviews tab ({selector}): '{element.text}', attempting to click"
                     )
 
@@ -617,16 +619,16 @@ class GoogleReviewsScraper:
                             if self.verify_reviews_tab_clicked(driver):
                                 successful_method = i + 1
                                 successful_selector = selector
-                                log.info(
+                                logger.info(
                                     f"Successfully clicked reviews tab using method {successful_method} and selector '{successful_selector}'"
                                 )
                                 return True
                         except Exception as click_error:
-                            log.debug(f'Click method {i + 1} failed: {click_error}')
+                            logger.debug(f'Click method {i + 1} failed: {click_error}')
                             continue
 
             except Exception as selector_error:
-                log.debug(f"Error with selector '{selector}': {selector_error}")
+                logger.debug(f"Error with selector '{selector}': {selector_error}")
                 continue
 
         # If we reach here, try XPath as a last resort
@@ -639,7 +641,9 @@ class GoogleReviewsScraper:
 
                     for element in elements:
                         try:
-                            log.info(f"Trying XPath with keyword '{language_keyword}'")
+                            logger.info(
+                                f"Trying XPath with keyword '{language_keyword}'"
+                            )
                             driver.execute_script(
                                 "arguments[0].scrollIntoView({block:'center'});",
                                 element,
@@ -649,7 +653,7 @@ class GoogleReviewsScraper:
                             time.sleep(1.5)
 
                             if self.verify_reviews_tab_clicked(driver):
-                                log.info(
+                                logger.info(
                                     f"Successfully clicked element with keyword '{language_keyword}'"
                                 )
                                 return True
@@ -672,7 +676,7 @@ class GoogleReviewsScraper:
                         driver.get(new_url)
                         time.sleep(2)
                         if 'review' in driver.current_url.lower():
-                            log.info('Navigated directly to reviews page via URL')
+                            logger.info('Navigated directly to reviews page via URL')
                             return True
 
             # Try to identify reviews link in URL
@@ -682,12 +686,12 @@ class GoogleReviewsScraper:
                 driver.get(new_url)
                 time.sleep(2)
                 if 'review' in driver.current_url.lower():
-                    log.info('Navigated directly to reviews page via URL')
+                    logger.info('Navigated directly to reviews page via URL')
                     return True
         except Exception as url_error:
-            log.warning(f'Failed to navigate to reviews via URL: {url_error}')
+            logger.warning(f'Failed to navigate to reviews via URL: {url_error}')
 
-        log.warning(f'Failed to find/click reviews tab after {attempts} attempts')
+        logger.warning(f'Failed to find/click reviews tab after {attempts} attempts')
         raise TimeoutException('Reviews tab not found or could not be clicked')
 
     def verify_reviews_tab_clicked(self, driver: Chrome) -> bool:
@@ -723,7 +727,7 @@ class GoogleReviewsScraper:
 
             return False
         except Exception as e:
-            log.debug(f'Error verifying reviews tab click: {e}')
+            logger.debug(f'Error verifying reviews tab click: {e}')
             return False
 
     def set_sort(self, driver: Chrome, method: str):
@@ -732,10 +736,10 @@ class GoogleReviewsScraper:
         Works across different languages and UI variations, with robust error handling.
         """
         if method == 'relevance':
-            log.info("Using default 'relevance' sort - no need to change sort order")
+            logger.info("Using default 'relevance' sort - no need to change sort order")
             return True  # Default order, no need to change
 
-        log.info(f"Attempting to set sort order to '{method}'")
+        logger.info(f"Attempting to set sort order to '{method}'")
 
         try:
             # 1. Find and click the sort button
@@ -829,19 +833,21 @@ class GoogleReviewsScraper:
                             if has_sort_keyword or has_sort_class or has_dropdown_attrs:
                                 # Found a potential sort button
                                 sort_button = element
-                                log.info(f'Found sort button with selector: {selector}')
-                                log.info(
+                                logger.info(
+                                    f'Found sort button with selector: {selector}'
+                                )
+                                logger.info(
                                     f"Button text: '{button_text}', aria-label: '{button_aria}'"
                                 )
                                 break
                         except Exception as e:
-                            log.debug(f'Error checking element: {e}')
+                            logger.debug(f'Error checking element: {e}')
                             continue
 
                     if sort_button:
                         break
                 except Exception as e:
-                    log.debug(f"Error with selector '{selector}': {e}")
+                    logger.debug(f"Error with selector '{selector}': {e}")
                     continue
 
             # If no button found with CSS selectors, try finding it from its container
@@ -858,7 +864,7 @@ class GoogleReviewsScraper:
                             for button in buttons:
                                 if button.is_displayed() and button.is_enabled():
                                     sort_button = button
-                                    log.info(
+                                    logger.info(
                                         'Found sort button through container element'
                                     )
                                     break
@@ -867,7 +873,7 @@ class GoogleReviewsScraper:
                         if sort_button:
                             break
                 except Exception as e:
-                    log.debug(f'Error finding button via container: {e}')
+                    logger.debug(f'Error finding button via container: {e}')
 
             # If still no button found, try XPath approach with keywords
             if not sort_button:
@@ -890,7 +896,7 @@ class GoogleReviewsScraper:
                             try:
                                 if element.is_displayed() and element.is_enabled():
                                     sort_button = element
-                                    log.info(
+                                    logger.info(
                                         f"Found sort button with XPath term: '{term}'"
                                     )
                                     break
@@ -927,7 +933,7 @@ class GoogleReviewsScraper:
                                         )
                                     ):
                                         sort_button = button
-                                        log.info(
+                                        logger.info(
                                             'Found potential sort button via fallback dropdown detection'
                                         )
                                         break
@@ -938,11 +944,11 @@ class GoogleReviewsScraper:
                         except Exception:
                             continue
                 except Exception as e:
-                    log.debug(f'Error in fallback sort button detection: {e}')
+                    logger.debug(f'Error in fallback sort button detection: {e}')
 
             # Final check - do we have a sort button?
             if not sort_button:
-                log.warning(
+                logger.warning(
                     'No sort button found with any method - keeping default sort order'
                 )
                 return False
@@ -995,7 +1001,7 @@ class GoogleReviewsScraper:
 
             for i, click_method in enumerate(click_methods):
                 try:
-                    log.info(f'Trying click method {i + 1} for sort button...')
+                    logger.info(f'Trying click method {i + 1} for sort button...')
                     click_method()
                     time.sleep(1)  # Wait for menu to appear
 
@@ -1003,15 +1009,15 @@ class GoogleReviewsScraper:
                     menu_opened = self.check_if_menu_opened(driver)
 
                     if menu_opened:
-                        log.info(f'Sort menu opened with click method {i + 1}')
+                        logger.info(f'Sort menu opened with click method {i + 1}')
                         break
                 except Exception as e:
-                    log.debug(f'Click method {i + 1} failed: {e}')
+                    logger.debug(f'Click method {i + 1} failed: {e}')
                     continue
 
             # If menu not opened, abort
             if not menu_opened:
-                log.warning('Failed to open sort menu - keeping default sort order')
+                logger.warning('Failed to open sort menu - keeping default sort order')
                 # Try to reset state by clicking elsewhere
                 try:
                     ActionChains(driver).move_by_offset(50, 50).click().perform()
@@ -1089,12 +1095,12 @@ class GoogleReviewsScraper:
                             text = item.text.strip()
                             visible_items.append((item, text))
                     except Exception as e:
-                        log.debug(f'Error processing menu item: {e}')
+                        logger.debug(f'Error processing menu item: {e}')
                         continue
 
-                log.info(f'Found {len(visible_items)} visible menu items')
+                logger.info(f'Found {len(visible_items)} visible menu items')
                 for i, (_, text) in enumerate(visible_items):
-                    log.debug(f"  Menu item {i + 1}: '{text}'")
+                    logger.debug(f"  Menu item {i + 1}: '{text}'")
 
                 # Determine the target menu item based on sort method
                 target_item = None
@@ -1116,7 +1122,7 @@ class GoogleReviewsScraper:
                         ):
                             target_item = item
                             matched_text = text
-                            log.info(
+                            logger.info(
                                 f"Found matching menu item: '{text}' for '{label}'"
                             )
                             break
@@ -1135,7 +1141,7 @@ class GoogleReviewsScraper:
                     pos = position_map.get(method, -1)
                     if pos >= 0 and pos < len(visible_items):
                         target_item, matched_text = visible_items[pos]
-                        log.info(
+                        logger.info(
                             f"Using position-based selection (position {pos}) for '{method}'"
                         )
 
@@ -1194,23 +1200,23 @@ class GoogleReviewsScraper:
                             still_open = self.check_if_menu_opened(driver)
                             if not still_open:
                                 click_success = True
-                                log.info(
+                                logger.info(
                                     f'Successfully clicked menu item with method {i + 1}'
                                 )
                                 break
                         except Exception as e:
-                            log.debug(f'Menu item click method {i + 1} failed: {e}')
+                            logger.debug(f'Menu item click method {i + 1} failed: {e}')
                             continue
 
                     if click_success:
-                        log.info(f"Successfully set sort order to '{method}'")
+                        logger.info(f"Successfully set sort order to '{method}'")
                         return True
                     else:
-                        log.warning(
+                        logger.warning(
                             'Failed to click menu item - keeping default sort order'
                         )
                 else:
-                    log.warning(f"No matching menu item found for '{method}'")
+                    logger.warning(f"No matching menu item found for '{method}'")
 
                 # If we get here, we failed - try to close the menu by clicking elsewhere
                 try:
@@ -1221,14 +1227,14 @@ class GoogleReviewsScraper:
                 return False
 
             except TimeoutException:
-                log.warning('Timeout waiting for menu items')
+                logger.warning('Timeout waiting for menu items')
                 return False
             except Exception as e:
-                log.warning(f'Error in menu item selection: {e}')
+                logger.warning(f'Error in menu item selection: {e}')
                 return False
 
         except Exception as e:
-            log.warning(f'Error in set_sort method: {e}')
+            logger.warning(f'Error in set_sort method: {e}')
             return False
 
     def check_if_menu_opened(self, driver):
@@ -1327,7 +1333,7 @@ class GoogleReviewsScraper:
                 if menu_detected:
                     return True
             except Exception as js_error:
-                log.debug(f'Error in JavaScript menu detection: {js_error}')
+                logger.debug(f'Error in JavaScript menu detection: {js_error}')
 
             # 5. Last resort: check if any positioning styles were applied to elements
             # This can detect menu containers that have been positioned absolutely
@@ -1357,7 +1363,7 @@ class GoogleReviewsScraper:
             return False
 
         except Exception as e:
-            log.debug(f'Error checking menu state: {e}')
+            logger.debug(f'Error checking menu state: {e}')
             return False
 
     def _rate_limit_sleep(self, newly_processed: int):
@@ -1368,7 +1374,7 @@ class GoogleReviewsScraper:
 
         # Hard cap (daily/session)
         if self.daily_max_reviews and self._processed_total >= self.daily_max_reviews:
-            log.info(
+            logger.info(
                 f'Daily/session max ({self.daily_max_reviews}) reached – stopping early.'
             )
             raise StopIteration
@@ -1389,7 +1395,7 @@ class GoogleReviewsScraper:
             and self._processed_total > 0
             and self._processed_total % self.pause_every_n == 0
         ):
-            log.info(
+            logger.info(
                 f'Pause checkpoint at {self._processed_total} reviews – sleeping {self.long_pause_seconds:.1f}s'
             )
             time.sleep(self.long_pause_seconds)
@@ -1403,10 +1409,10 @@ class GoogleReviewsScraper:
         sort_by = self.config.get('sort_by', 'relevance')
         stop_on_match = self.config.get('stop_on_match', False)
 
-        log.info(
+        logger.info(
             f'Starting scraper with settings: headless={headless}, sort_by={sort_by}'
         )
-        log.info(f'URL: {url}')
+        logger.info(f'URL: {url}')
 
         docs: Dict[str, TransformedReview] = {}
 
@@ -1451,7 +1457,7 @@ class GoogleReviewsScraper:
                     EC.presence_of_element_located((By.CSS_SELECTOR, PANE_SEL))
                 )
             except TimeoutException:
-                log.warning(
+                logger.warning(
                     'Could not find reviews pane. Page structure might have changed.'
                 )
                 return []
@@ -1465,7 +1471,7 @@ class GoogleReviewsScraper:
                 driver.execute_script('window.scrollablePane = arguments[0];', pane)
                 scroll_script = 'window.scrollablePane.scrollBy(0, window.scrollablePane.scrollHeight);'
             except Exception as e:
-                log.warning(f'Error setting up scroll script: {e}')
+                logger.warning(f'Error setting up scroll script: {e}')
                 scroll_script = (
                     'window.scrollBy(0, 300);'  # Fallback to simple scrolling
                 )
@@ -1480,7 +1486,7 @@ class GoogleReviewsScraper:
 
                     # Check for valid cards
                     if len(cards) == 0:
-                        log.debug('No review cards found in this iteration')
+                        logger.debug('No review cards found in this iteration')
                         attempts += 1
                         # Try scrolling anyway
                         driver.execute_script(scroll_script)
@@ -1503,7 +1509,7 @@ class GoogleReviewsScraper:
                         except StaleElementReferenceException:
                             continue
                         except Exception as e:
-                            log.debug(f'Error getting review ID: {e}')
+                            logger.debug(f'Error getting review ID: {e}')
                             continue
 
                     for card in fresh_cards:
@@ -1515,7 +1521,7 @@ class GoogleReviewsScraper:
                         except StaleElementReferenceException:
                             continue
                         except Exception:
-                            log.warning(
+                            logger.warning(
                                 '⚠️ parse error – storing stub\n%s',
                                 traceback.format_exc(limit=1).strip(),
                             )
@@ -1543,7 +1549,7 @@ class GoogleReviewsScraper:
                     try:
                         driver.execute_script(scroll_script)
                     except Exception as e:
-                        log.warning(f'Error scrolling: {e}')
+                        logger.warning(f'Error scrolling: {e}')
                         # Try a simpler scroll method
                         driver.execute_script('window.scrollBy(0, 300);')
 
@@ -1558,7 +1564,7 @@ class GoogleReviewsScraper:
 
                 except StaleElementReferenceException:
                     # The pane or other element went stale, try to re-find
-                    log.debug('Stale element encountered, re-finding elements')
+                    logger.debug('Stale element encountered, re-finding elements')
                     try:
                         pane = wait.until(
                             EC.presence_of_element_located((By.CSS_SELECTOR, PANE_SEL))
@@ -1567,12 +1573,12 @@ class GoogleReviewsScraper:
                             'window.scrollablePane = arguments[0];', pane
                         )
                     except Exception:
-                        log.warning(
+                        logger.warning(
                             'Could not re-find reviews pane after stale element'
                         )
                         break
                 except Exception as e:
-                    log.warning(f'Error during review processing: {e}')
+                    logger.warning(f'Error during review processing: {e}')
                     attempts += 1
                     time.sleep(1)
 
@@ -1580,26 +1586,26 @@ class GoogleReviewsScraper:
 
             # Save to MongoDB if enabled
             if self.use_mongodb and self.mongodb:
-                log.info('Saving reviews to MongoDB...')
+                logger.info('Saving reviews to MongoDB...')
                 self.mongodb.save_reviews(docs)
 
             # Backup to JSON if enabled
             if self.backup_to_json:
-                log.info('Backing up to JSON...')
+                logger.info('Backing up to JSON...')
                 self.json_storage.save_json_docs(docs)
                 self.json_storage.save_seen(seen)
 
-            log.info('✅ Finished – total unique reviews: %s', len(docs))
+            logger.info('✅ Finished – total unique reviews: %s', len(docs))
 
             end_time = time.time()
             elapsed_time = end_time - start_time
-            log.info(f'Execution completed in {elapsed_time:.2f} seconds')
+            logger.info(f'Execution completed in {elapsed_time:.2f} seconds')
 
             return list(docs.values())
 
         except Exception as e:
-            log.error(f'Error during scraping: {e}')
-            log.error(traceback.format_exc())
+            logger.error(f'Error during scraping: {e}')
+            logger.error(traceback.format_exc())
             return []
 
         finally:
