@@ -32,6 +32,9 @@ dist/
 *.csv
 *.tsv
 *.zip
+*.json
+*.gml
+*.ids
 
 data-and-network/Places/geoNames/
 data-and-network/Scraper/google_reviews.*

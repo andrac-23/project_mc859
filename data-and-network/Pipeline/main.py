@@ -60,19 +60,28 @@ MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 PIPELINE_PROGRESS_PATH = os.path.join(MODULE_DIR, 'pipeline_progress.json')
 
 interrupted = False
+interrupted_count = 0
 
 
 def handle_sigint(_sig, _frame):
     global interrupted
+    global interrupted_count
 
-    logger.info('Termination signal received. Ending on end of current iteration...')
+    logger.info(
+        'Termination signal received. Ending on end of current iteration... Press Ctrl+C again to force quit.'
+    )
     interrupted = True
+
+    interrupted_count += 1
+    if interrupted_count >= 2:
+        logger.info('Force quitting now.')
+        sys.exit(1)
 
 
 signal.signal(signal.SIGINT, handle_sigint)
 
 
-def generate_json_reviews_path(
+def generate_reviews_directory(
     continent: str, country: str, city: str, attraction: str
 ) -> str:
     safe_continent = utils.make_string_filesystem_safe(continent)
@@ -80,24 +89,67 @@ def generate_json_reviews_path(
     safe_city = utils.make_string_filesystem_safe(city)
     safe_attraction = utils.make_string_filesystem_safe(attraction)
 
-    dir_path = os.path.join('scraped_reviews', safe_continent, safe_country, safe_city)
+    dir_path = os.path.join(
+        MODULE_DIR,
+        '..',
+        'scraped_reviews',
+        safe_continent,
+        safe_country,
+        safe_city,
+        safe_attraction,
+    )
     os.makedirs(dir_path, exist_ok=True)
 
-    return os.path.join(dir_path, f'{safe_attraction}_reviews.json')
+    return dir_path
 
 
-def get_pipeline_progress() -> PipelineProgress:
+def generate_json_reviews_path(
+    continent: str, country: str, city: str, attraction: str
+) -> str:
+    reviews_directory = generate_reviews_directory(continent, country, city, attraction)
+
+    return os.path.join(reviews_directory, 'google_reviews.json')
+
+
+def generate_seen_ids_path(
+    continent: str, country: str, city: str, attraction: str
+) -> str:
+    reviews_directory = generate_reviews_directory(continent, country, city, attraction)
+
+    return os.path.join(reviews_directory, 'google_reviews.ids')
+
+
+def get_pipeline_progress(places_info: places.Places) -> PipelineProgress:
     if os.path.exists(PIPELINE_PROGRESS_PATH):
-        with open(PIPELINE_PROGRESS_PATH, 'r') as f:
+        with open(PIPELINE_PROGRESS_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
             return from_dict(data_class=PipelineProgress, data=data)
     else:
-        return PipelineProgress(continents=[])
+        pipeline_progress = PipelineProgress(continents=[])
+        for continent in places_info.continents:
+            continent_progress = ContinentProgress(
+                name=continent.name, progress='❌', countries=[]
+            )
+            for country in continent.countries:
+                country_progress = CountryProgress(
+                    name=country.name, progress='❌', cities=[]
+                )
+                for city in country.cities:
+                    city_progress = CityProgress(
+                        name=city.name, progress='❌', attractions=[]
+                    )
+                    country_progress.cities.append(city_progress)
+                continent_progress.countries.append(country_progress)
+            pipeline_progress.continents.append(continent_progress)
+
+    return pipeline_progress
 
 
 def save_pipeline_progress(progress: PipelineProgress):
-    with open(PIPELINE_PROGRESS_PATH, 'w') as f:
-        json.dump(progress, f, cls=utils.EnhancedJSONEncoder, indent=2)
+    with open(PIPELINE_PROGRESS_PATH, 'w', encoding='utf-8') as f:
+        json.dump(
+            progress, f, ensure_ascii=False, cls=utils.EnhancedJSONEncoder, indent=2
+        )
 
 
 def reset_pipeline_data():
@@ -114,9 +166,9 @@ def reset_pipeline_data():
 def exec_net_build_pipeline():
     global interrupted
 
-    pipeline_progress = get_pipeline_progress()
-
     places_info = places.get_places()
+
+    pipeline_progress = get_pipeline_progress(places_info)
 
     try:
         for continent in places_info.continents:
@@ -124,11 +176,6 @@ def exec_net_build_pipeline():
                 (c for c in pipeline_progress.continents if c.name == continent.name),
                 None,
             )
-            if not continent_progress:
-                continent_progress = ContinentProgress(
-                    name=continent.name, progress='❌', countries=[]
-                )
-                pipeline_progress.continents.append(continent_progress)
             if continent_progress.progress == '✅':
                 logger.info(
                     f'Skipping continent {continent.name} as it is already completed.'
@@ -140,11 +187,6 @@ def exec_net_build_pipeline():
                     (c for c in continent_progress.countries if c.name == country.name),
                     None,
                 )
-                if not country_progress:
-                    country_progress = CountryProgress(
-                        name=country.name, progress='❌', cities=[]
-                    )
-                    continent_progress.countries.append(country_progress)
                 if country_progress and country_progress.progress == '✅':
                     logger.info(
                         f'Skipping country {country.name} as it is already completed.'
@@ -156,11 +198,6 @@ def exec_net_build_pipeline():
                         (c for c in country_progress.cities if c.name == city.name),
                         None,
                     )
-                    if not city_progress:
-                        city_progress = CityProgress(
-                            name=city.name, progress='❌', attractions=[]
-                        )
-                        country_progress.cities.append(city_progress)
                     if city_progress and city_progress.progress == '✅':
                         logger.info(
                             f'Skipping city {city.name} as it is already completed.'
@@ -171,72 +208,109 @@ def exec_net_build_pipeline():
                         f'Processing city: {city.name} in country: {country.name}, continent: {continent.name}'
                     )
 
-                places_api_city_info = places_api.Location(
-                    latitude=city.latitude, longitude=city.longitude
-                )
-                city_attractions = places_api.getNearbyAttractions(places_api_city_info)
-
-                for attraction in city_attractions:
-                    attraction_progress = next(
-                        (a for a in city_progress.attractions if a.id == attraction.id),
-                        None,
+                    places_api_city_info = places_api.Location(
+                        latitude=city.latitude, longitude=city.longitude
                     )
-                    if not attraction_progress:
-                        attraction_progress = AttractionProgress(
-                            id=attraction.id, name=attraction.name, progress='❌'
-                        )
-                        city_progress.attractions.append(attraction_progress)
-                    if attraction_progress and attraction_progress.progress == '✅':
-                        logger.info(
-                            f'Skipping attraction {attraction.displayName["text"]} as it is already completed.'
-                        )
-                        continue
+                    city_attractions = places_api.getNearbyAttractions(
+                        places_api_city_info
+                    )
+                    logger.info(
+                        f'Found {len(city_attractions)} attractions for city: {city.name}: {[a.displayName["text"] for a in city_attractions]}'
+                    )
 
-                    reviews = scraper.scrape_google_maps(
-                        {
-                            'url': f'{attraction.googleMapsUri}&hl=en',
-                            'json_path': generate_json_reviews_path(
-                                continent.name,
-                                country.name,
-                                city.name,
-                                attraction.displayName['text'],
+                    for attraction in city_attractions:
+                        attraction_progress = next(
+                            (
+                                a
+                                for a in city_progress.attractions
+                                if a.id == attraction.id
                             ),
-                        }
-                    )
+                            None,
+                        )
+                        if not attraction_progress:
+                            attraction_progress = AttractionProgress(
+                                id=attraction.id,
+                                name=attraction.displayName['text'],
+                                progress='❌',
+                            )
+                            city_progress.attractions.append(attraction_progress)
+                        if attraction_progress and attraction_progress.progress == '✅':
+                            logger.info(
+                                f'Skipping attraction {attraction.displayName["text"]} as it is already completed.'
+                            )
+                            continue
 
-                    for review in reviews:
-                        review_sentences = sentiments.extract_sentences_from_text(
-                            review.description['en']
+                        reviews = scraper.scrape_google_maps(
+                            {
+                                'url': f'{attraction.googleMapsUri}&hl=en',
+                                'json_path': generate_json_reviews_path(
+                                    continent.name,
+                                    country.name,
+                                    city.name,
+                                    attraction.displayName['text'],
+                                ),
+                                'seen_ids_path': generate_seen_ids_path(
+                                    continent.name,
+                                    country.name,
+                                    city.name,
+                                    attraction.displayName['text'],
+                                ),
+                                'stop_on_match': False,
+                            }
                         )
 
-                        for sentence in review_sentences:
-                            adjectives = sentiments.extract_sentence_adjectives(
-                                sentence
+                        for review in reviews:
+                            logger.info(
+                                f'Processing review {review.review_id} for attraction {attraction.displayName["text"]}'
                             )
-                            sentiment_score = sentiments.extract_sentence_sentiment(
-                                sentence
-                            )
-                            weighted_sentiment_score = review.rating * (
-                                1 + sentiment_score['compound']
+                            review_sentences = sentiments.extract_sentences_from_text(
+                                review.description['en']
                             )
 
-                            for adjective in adjectives:
-                                network.add_edge(
-                                    city.name,
-                                    attraction.name,
-                                    adjective,
-                                    weighted_sentiment_score,
+                            for sentence in review_sentences:
+                                adjectives = sentiments.extract_sentence_adjectives(
+                                    sentence
+                                )
+                                sentiment_score = sentiments.extract_sentence_sentiment(
+                                    sentence
                                 )
 
-                    if interrupted:
-                        # Save progress before exiting
-                        logger.info('Saving progress before exiting...')
+                                for adjective in adjectives:
+                                    network.add_edge(
+                                        attraction,
+                                        adjective,
+                                        'adjective',
+                                        sentiment_score['compound'],
+                                        review.rating,
+                                    )
 
-                        save_pipeline_progress(pipeline_progress)
-                        network.save_graph()
-                        raise StopIteration
+                        attraction_progress.progress = '✅'
+                        logger.info(
+                            f'Finished processing attraction {attraction.displayName["text"]} with {len(reviews)} reviews.'
+                        )
+
+                        if interrupted:
+                            # Save progress before exiting
+                            logger.info('Saving progress before exiting...')
+
+                            save_pipeline_progress(pipeline_progress)
+                            network.save_graph()
+                            raise StopIteration
+
+                    city_progress.progress = '✅'
+                    logger.info(f'Finished processing city {city.name}.')
+
+                country_progress.progress = '✅'
+                logger.info(f'Finished processing country {country.name}.')
+
+            continent_progress.progress = '✅'
+            logger.info(f'Finished processing continent {continent.name}.')
+
+        logger.info('Pipeline execution completed successfully! ✅')
 
     except StopIteration:
         logger.info('Pipeline interrupted. Progress saved. Exiting gracefully.')
 
     sys.exit(0)
+
+    return

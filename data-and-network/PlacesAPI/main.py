@@ -3,8 +3,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import logging
 import os
+import random
 from typing import Dict, List, Literal
 
+from dacite import from_dict
 import requests
 
 logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
@@ -45,24 +47,65 @@ Search_Nearby_Constants = {
         'places.userRatingCount',
         'places.rating',
     ],
-    'PLACE_TYPES': ['tourist_attraction', 'point_of_interest', 'establishment'],
-    'MAX_RESULTS': 20,
+    'MAX_RESULTS': 5,
     'RANK_PREFERENCE': 'popularity',
     'RADIUS_METERS': 5000,
 }
 
+Considered_Place_Types_Filters = {
+    'nature': [
+        'park',
+        'garden',
+        'national_park',
+        'botanical_garden',
+        'state_park',
+        'wildlife_park',
+        'zoo',
+        'beach',
+        'hiking_area',
+    ],
+    'culture': [
+        'museum',
+        'historical_place',
+        'cultural_landmark',
+        'historical_landmark',
+        'monument',
+        'art_gallery',
+    ],
+    'performing_art': [
+        'opera_house',
+        'concert_hall',
+        'philharmonic_hall',
+        'performing_arts_theater',
+        'cultural_center',
+        'amphitheatre',
+    ],
+    'entertainment': [
+        'amusement_park',
+        'water_park',
+        'roller_coaster',
+        'casino',
+        'movie_theater',
+        'planetarium',
+        'aquarium',
+    ],
+    'religion': ['church', 'hindu_temple', 'mosque', 'synagogue'],
+    'general': ['tourist_attraction', 'visitor_center', 'plaza'],
+}
+
 
 def getNearbyAttractionsFromType(
-    location: Location, place_type: str
+    location: Location, place_types: List[str]
 ) -> NearbySearchResponse:
-    url = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
+    url = 'https://places.googleapis.com/v1/places:searchNearby'
 
     headers = {
         'X-Goog-Api-Key': PLACES_API_KEY,
+        'Content-Type': 'application/json',
     }
-    params = {'fields': Search_Nearby_Constants['RESPONSE_FIELDS']}
+    params = {'fields': ','.join(Search_Nearby_Constants['RESPONSE_FIELDS'])}
     body = {
-        'includedTypes': [place_type],
+        'includedTypes': place_types,
         'maxResultCount': Search_Nearby_Constants['MAX_RESULTS'],
         'rankPreference': Search_Nearby_Constants['RANK_PREFERENCE'],
         'locationRestriction': {
@@ -79,7 +122,9 @@ def getNearbyAttractionsFromType(
     response = requests.post(url, headers=headers, params=params, json=body)
 
     if response.status_code == 200:
-        return response.json().get('results', [])
+        places_json = response.json().get('places', [])
+        places = [from_dict(data_class=Place, data=place) for place in places_json]
+        return NearbySearchResponse(places=places)
     else:
         logger.error(
             f'Error fetching nearby attractions: {response.status_code} - {response.text}'
@@ -87,17 +132,17 @@ def getNearbyAttractionsFromType(
         return NearbySearchResponse(places=[])
 
 
-def getNearbyAttractions(location: Location) -> List[Place]:
+def getNearbyAttractions(location: Location, maximum_results: int = 5) -> List[Place]:
     responses: List[NearbySearchResponse] = []
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         futures = [
-            executor.submit(getNearbyAttractionsFromType, location, place_type)
-            for place_type in Search_Nearby_Constants['PLACE_TYPES']
+            executor.submit(getNearbyAttractionsFromType, location, place_types)
+            for place_types in Considered_Place_Types_Filters.values()
         ]
         for future in futures:
             try:
                 result = future.result()
-                responses.extend(result)
+                responses.append(result)
             except Exception as e:
                 logger.error(f'Error fetching attractions: {e}')
 
@@ -106,6 +151,21 @@ def getNearbyAttractions(location: Location) -> List[Place]:
         attractions.extend(responses[i].places)
 
     # Deduplicate attractions by id
-    unique_attractions = {attraction.id: attraction for attraction in attractions}
+    unique_attractions = list(
+        {attraction.id: attraction for attraction in attractions}.values()
+    )
+    # Shuffle and return max of N
+    random.shuffle(unique_attractions)
 
-    return list(unique_attractions.values())
+    return unique_attractions[:maximum_results]
+
+
+if __name__ == '__main__':
+    # Example usage
+    location = Location(
+        latitude=-22.90556, longitude=-47.06083
+    )  # Example: Campinas, Brazil
+    attractions = getNearbyAttractions(location)
+    print(f'Found {len(attractions)} attractions:')
+    for attraction in attractions:
+        print(f'{attraction.displayName["text"]} - {attraction.googleMapsUri}')

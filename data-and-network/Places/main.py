@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import json
 import logging
 import os
-from typing import List
+from typing import Dict, List, Optional
 
 from dacite import from_dict
 import pandas as pd
@@ -42,10 +42,10 @@ MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 CITIES_DATA_PATH = os.path.join(MODULE_DIR, 'geoNames', 'cities15000.txt')
 COUNTRIES_DATA_PATH = os.path.join(MODULE_DIR, 'geoNames', 'countryInfo.txt')
 SAVED_CSV_PATH = os.path.join(
-    MODULE_DIR, 'top50_cities_per_top10_countries_per_continent.csv'
+    MODULE_DIR, 'top_cities_per_top_countries_per_continent.csv'
 )
 SAVED_JSON_PATH = os.path.join(
-    MODULE_DIR, 'top50_cities_per_top10_countries_per_continent.json'
+    MODULE_DIR, 'top_cities_per_top_countries_per_continent.json'
 )
 
 # Load the cities15000 dataset
@@ -103,14 +103,36 @@ continents_map = {
     'AN': 'Antarctica',
 }
 
+default_per_continent_quota = {
+    'AF': 2,
+    'AS': 2,
+    'EU': 6,
+    'NA': 2,
+    'OC': 2,
+    'SA': 3,
+}
 
-def get_places(top_countries=10, top_cities=50) -> Places:
+default_filtered_countries = [
+    'PG',  # Papua New Guinea
+    'ET',  # Ethiopia
+]
+
+default_included_cities = ['Campinas', 'Recife', 'Manaus', 'Curitiba']
+
+
+def get_places(
+    num_countries=4,
+    num_cities=3,
+    per_continent_country_quota: Optional[Dict[str, int]] = default_per_continent_quota,
+    removed_countries: Optional[List[str]] = default_filtered_countries,
+    included_cities: Optional[List[str]] = default_included_cities,
+) -> Places:
     """
     Get top X cities from top Y countries by population for each continent.
     Saves the results to a CSV file and a JSON file for future runs.
     """
     if os.path.exists(SAVED_JSON_PATH):
-        with open(SAVED_JSON_PATH, 'r') as f:
+        with open(SAVED_JSON_PATH, 'r', encoding='utf-8') as f:
             saved_data = json.load(f)
             saved_data = from_dict(data_class=Places, data=saved_data)
 
@@ -133,23 +155,44 @@ def get_places(top_countries=10, top_cities=50) -> Places:
         sep='	',
         names=countriesCols,
         header=None,
-        dtype={'Population': 'Int64'},
+        dtype={'Population': 'Int64', 'Continent': 'string'},
+        keep_default_na=False,
     )
 
-    # Sort countries by population and get top 10 per continent
-    top_countries = (
-        countriesDF[countriesDF['Continent'] != 'AN']
-        .sort_values('Population', ascending=False)
-        .groupby('Continent')
-        .head(top_countries)
-    )
+    # Sort countries by population and get top X countries per continent
+    sorted_countries = countriesDF[countriesDF['Continent'] != 'AN'].copy()
+    sorted_countries = sorted_countries.sort_values('Population', ascending=False)
+    filtered_countries = sorted_countries[
+        ~sorted_countries['ISO'].isin(removed_countries)
+    ]
+
+    parts = []
+    for continent, group in filtered_countries.groupby('Continent'):
+        total_countries = int(per_continent_country_quota.get(continent, num_countries))
+        parts.append(group.head(total_countries))
+
+    top_countries = pd.concat(parts, ignore_index=True)
     top_cities = {}
     for _, row in top_countries.iterrows():
         country_code = row['ISO']
+        country__cities_df = citiesDF[citiesDF['country_code'] == country_code].copy()
+
+        included_df = country__cities_df[
+            country__cities_df['name'].isin(included_cities)
+            | country__cities_df['asciiname'].isin(included_cities)
+        ]
+        included_df = included_df.sort_values(
+            'population', ascending=False
+        ).drop_duplicates(subset=['name'], keep='first')
+
+        top_df = country__cities_df.sort_values('population', ascending=False).head(
+            num_cities
+        )
+
         top_cities[country_code] = (
-            citiesDF[citiesDF['country_code'] == country_code]
+            pd.concat([included_df, top_df])
+            .drop_duplicates()
             .sort_values('population', ascending=False)
-            .head(top_cities)
         )
         top_cities[country_code]['continent'] = row['Continent']
 
@@ -196,12 +239,14 @@ def get_places(top_countries=10, top_cities=50) -> Places:
     combined_top_cities.to_csv(SAVED_CSV_PATH, index=False)
 
     # Save processed and separated places to JSON
-    if os.path.exists(SAVED_JSON_PATH):
+    if not os.path.exists(SAVED_JSON_PATH):
         logger.info(
             'Saving places (continents, countries and cities) results from current run.'
         )
-        with open(SAVED_JSON_PATH, 'w') as f:
-            json.dump(places, f, cls=utils.EnhancedJSONEncoder, indent=2)
+        with open(SAVED_JSON_PATH, 'w', encoding='utf-8') as f:
+            json.dump(
+                places, f, ensure_ascii=False, cls=utils.EnhancedJSONEncoder, indent=2
+            )
 
     return places
 

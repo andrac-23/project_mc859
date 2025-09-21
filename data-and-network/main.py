@@ -49,6 +49,7 @@ if __name__ == '__main__':
     if args.reset:
         logger.info('Resetting all data and network...')
         reset_data_and_network()
+        exit(0)
     else:
         logger.info('No reset flag provided. Skipping data reset.')
 

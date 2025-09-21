@@ -2,6 +2,7 @@
 Selenium scraping logic for Google Maps Reviews.
 """
 
+import gc
 import logging
 import os
 import platform
@@ -11,6 +12,7 @@ import time
 import traceback
 from typing import Any, Dict, List
 
+from dacite import from_dict
 from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.action_chains import ActionChains
@@ -339,7 +341,7 @@ class GoogleReviewsScraper:
         self.max_scroll_delay = config.get('max_scroll_delay', 1.7)
         self.pause_every_n = config.get('pause_every_n_reviews', 0)
         self.long_pause_seconds = config.get('long_pause_seconds', 0)
-        self.daily_max_reviews = config.get('daily_max_reviews', 0)
+        self.daily_max_reviews = config.get('daily_max_reviews', 5)
         self.jitter_probability = config.get('jitter_probability', 0.1)
         self.jitter_extra_seconds = config.get('jitter_extra_seconds', 2.0)
 
@@ -454,7 +456,7 @@ class GoogleReviewsScraper:
         try:
             # Strategy 1: Data attribute detection (most reliable across languages)
             tab_index = tab.get_attribute('data-tab-index')
-            if tab_index == '1' or tab_index == 'reviews':
+            if tab_index == '1' or tab_index == '2' or tab_index == 'reviews':
                 return True
 
             # Strategy 2: Role and aria attributes (accessibility detection)
@@ -536,7 +538,8 @@ class GoogleReviewsScraper:
         # Define different selectors to try in order of reliability
         tab_selectors = [
             # Direct tab selectors
-            '[data-tab-index="1"]',  # Most common tab index
+            '[data-tab-index="2"]',  # Reviews tab (new index)
+            '[data-tab-index="1"]',  # Menu tab (old index, fallback)
             '[role="tab"][data-tab-index]',  # Any tab with index
             'button[role="tab"]',  # Button tabs
             'div[role="tab"]',  # Div tabs
@@ -1431,6 +1434,7 @@ class GoogleReviewsScraper:
                 # Merge JSON docs with MongoDB docs
                 for review_id, review in json_docs.items():
                     if review_id not in docs:
+                        # TODO: might have to transform to TransformedReview
                         docs[review_id] = review
 
             # Load seen IDs from file
@@ -1511,7 +1515,9 @@ class GoogleReviewsScraper:
                         except Exception as e:
                             logger.debug(f'Error getting review ID: {e}')
                             continue
-
+                    logger.info(
+                        f'Found {len(cards)} total cards, {len(fresh_cards)} fresh cards'
+                    )
                     for card in fresh_cards:
                         try:
                             raw = RawReview.from_card(card)
@@ -1558,6 +1564,9 @@ class GoogleReviewsScraper:
                     # time.sleep(sleep_time)
                     # Replace original sleep_time logic with rate limiter
                     try:
+                        logger.info(
+                            f'Processed {len(fresh_cards)} new reviews, applying rate limit sleep...'
+                        )
                         self._rate_limit_sleep(len(fresh_cards))
                     except StopIteration:
                         break
@@ -1578,7 +1587,9 @@ class GoogleReviewsScraper:
                         )
                         break
                 except Exception as e:
-                    logger.warning(f'Error during review processing: {e}')
+                    logger.warning(
+                        f'Error during review processing: {e} stacktrace: {traceback.format_exc()}'
+                    )
                     attempts += 1
                     time.sleep(1)
 
@@ -1595,13 +1606,24 @@ class GoogleReviewsScraper:
                 self.json_storage.save_json_docs(docs)
                 self.json_storage.save_seen(seen)
 
-            logger.info('✅ Finished – total unique reviews: %s', len(docs))
+            logger.info('✅ Finished scraping – total unique reviews: %s', len(docs))
 
             end_time = time.time()
             elapsed_time = end_time - start_time
             logger.info(f'Execution completed in {elapsed_time:.2f} seconds')
 
-            return list(docs.values())
+            if driver is not None:
+                try:
+                    driver.quit()
+                    gc.collect()
+                except Exception:
+                    pass
+                driver = None
+
+            return [
+                from_dict(data_class=TransformedReview, data=doc)
+                for doc in docs.values()
+            ]
 
         except Exception as e:
             logger.error(f'Error during scraping: {e}')

@@ -11,12 +11,11 @@ from typing import Any, Dict
 
 import yaml
 
-log_level = getattr(logging, os.environ.get('LOG_LEVEL', 'INFO').upper(), logging.INFO)
-logging.basicConfig(level=log_level, format='[%(asctime)s] %(levelname)s: %(message)s')
-log = logging.getLogger('scraper')
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 # Default configuration path
-DEFAULT_CONFIG_PATH = Path('config.yaml')
+MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
+DEFAULT_CONFIG_PATH = Path(os.path.join(MODULE_DIR, '..', 'config.yaml'))
 
 # Default configuration - will be overridden by config file
 DEFAULT_CONFIG = {
@@ -44,10 +43,6 @@ DEFAULT_CONFIG = {
     'custom_url_profiles': '/profiles/',  # Path for profile images
     'custom_url_reviews': '/reviews/',  # Path for review images
     'preserve_original_urls': True,  # Option to preserve original URLs
-    'custom_params': {  # Custom parameters to add to each document
-        'company': 'Thaitours',  # Default example
-        'source': 'Google Maps',  # Default example
-    },
     'min_scroll_delay': 0.9,
     'max_scroll_delay': 1.7,
     'pause_every_n_reviews': 150,
@@ -80,15 +75,14 @@ def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
                                 d[k] = v
 
                     deep_update(config, user_config)
-                    log.info(f'Loaded configuration from {config_path}')
         except Exception as e:
-            log.error(f'Error loading config from {config_path}: {e}')
-            log.info('Using default configuration')
+            logger.error(f'Error loading config from {config_path}: {e}')
+            logger.info('Using default configuration')
     else:
-        log.info(f'Config file {config_path} not found, using default configuration')
+        logger.info(f'Config file {config_path} not found, using default configuration')
         # Create a default config file for future use
         with open(config_path, 'w') as f:
             yaml.dump(config, f, default_flow_style=False)
-            log.info(f'Created default configuration file at {config_path}')
+            logger.info(f'Created default configuration file at {config_path}')
 
     return config

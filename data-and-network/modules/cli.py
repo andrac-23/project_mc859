@@ -15,7 +15,11 @@ def parse_arguments():
         description='Google‑Maps review scraper with MongoDB integration'
     )
     ap.add_argument(
-        '-q', '--headless', action='store_true', help='run Chrome in the background'
+        '-q',
+        '--headless',
+        action='store_true',
+        help='run Chrome in the background',
+        default=None,
     )
     ap.add_argument(
         '-s',
@@ -46,7 +50,7 @@ def parse_arguments():
     ap.add_argument(
         '--use-mongodb',
         type=bool,
-        default=None,
+        default=False,
         help='whether to use MongoDB for storage',
     )
 
@@ -60,7 +64,7 @@ def parse_arguments():
     ap.add_argument(
         '--download-images',
         type=bool,
-        default=None,
+        default=False,
         help='download images from reviews',
     )
     ap.add_argument(
@@ -114,6 +118,7 @@ def parse_arguments():
     )
 
     args = ap.parse_args()
+    print(f'Parsed arguments headless: {args.headless}')
 
     # Handle config path
     if args.config is not None:

@@ -18,7 +18,12 @@ def extract_sentences_from_text(text):
 def extract_sentence_adjectives(sentence):
     doc = nlp(sentence)
 
-    return [token.text for token in doc if token.pos_ == 'ADJ']
+    # Extract adjectives excluding ordinals
+    return [
+        token.text
+        for token in doc
+        if token.pos_ == 'ADJ' and not (token.like_num or token.ent_type_ == 'ORDINAL')
+    ]
 
 
 def extract_sentence_sentiment(sentence):
@@ -29,7 +34,8 @@ def extract_sentence_sentiment(sentence):
 
 
 if __name__ == '__main__':
-    test_sentence = 'The food was absolutely wonderful, from preparation to presentation, very pleasing.'
+    test_sentence = 'The first dog is bigger than the second beautiful dog, but the 11th dog is the smallest.'
     adjectives = extract_sentence_adjectives(test_sentence)
+
     print(adjectives)  # Output: ['wonderful', 'pleasing']
     extract_sentence_sentiment(test_sentence)

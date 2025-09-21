@@ -6,33 +6,45 @@ Google‑Maps review scraper with MongoDB integration
 Main entry point for the scraper.
 """
 
+import logging
+import os
 from typing import List
 
+from modules.cli import parse_arguments
 from modules.config import load_config
 from modules.scraper import GoogleReviewsScraper, TransformedReview
 
+logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
+loggedConfig = False
 
-def scrape_google_maps(args) -> List[TransformedReview]:
+
+def scrape_google_maps(extraArgs: dict) -> List[TransformedReview]:
     """Main function to initialize and run the scraper"""
     # Parse command line arguments
-    # args = parse_arguments()
+    args = parse_arguments()
+    for key, value in extraArgs.items():
+        setattr(args, key, value)
 
     # Load configuration
-    config = load_config(args.config)
+    config = load_config()
 
     # Override config with command line arguments if provided
-    if args.headless:
-        config['headless'] = True
+    if args.headless is not None:
+        config['headless'] = args.headless
     if args.sort_by is not None:
         config['sort_by'] = args.sort_by
-    if args.stop_on_match:
-        config['stop_on_match'] = True
+    if args.stop_on_match is not None:
+        config['stop_on_match'] = args.stop_on_match
     if args.url is not None:
         config['url'] = args.url
-    if args.overwrite_existing:
-        config['overwrite_existing'] = True
+    if args.overwrite_existing is not None:
+        config['overwrite_existing'] = args.overwrite_existing
     if args.use_mongodb is not None:
         config['use_mongodb'] = args.use_mongodb
+    if args.json_path is not None:
+        config['json_path'] = args.json_path
+    if args.seen_ids_path is not None:
+        config['seen_ids_path'] = args.seen_ids_path
 
     # Handle arguments for date conversion and image downloading
     if args.convert_dates is not None:
@@ -66,6 +78,11 @@ def scrape_google_maps(args) -> List[TransformedReview]:
         config['custom_params'].update(args.custom_params)
 
     # Initialize and run scraper
+    global loggedConfig
+    if not loggedConfig:
+        logger.info('Starting Google Maps scraper with config: %s', config)
+        loggedConfig = True
+
     scraper = GoogleReviewsScraper(config)
     reviews = scraper.scrape()
 

@@ -1,7 +1,7 @@
 # Google Maps Reviews Scraper Configuration
 
 # URL to scrape
-url: "https://maps.google.com/?cid=2321544034470404611&g_mp=Cilnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaE5lYXJieRACGAQgAA&hl=en"
+url: "https://maps.google.com/your_url"
 
 # Scraper settings
 headless: true # Run Chrome in headless mode
