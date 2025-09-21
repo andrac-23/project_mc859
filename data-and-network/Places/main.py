@@ -7,7 +7,7 @@ from typing import List
 from dacite import from_dict
 import pandas as pd
 
-import Utils.main as utils
+import Shared.main as utils
 
 
 @dataclass

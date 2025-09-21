@@ -8,7 +8,7 @@ from dacite import from_dict
 import networkx as nx
 
 from PlacesAPI.main import Place
-import Utils.main as utils
+import Shared.main as utils
 
 
 @dataclass

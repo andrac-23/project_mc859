@@ -19,6 +19,7 @@ dependencies = [
     "requests==2.32.3",
     "selenium==4.15.2",
     "setuptools==79.0.1",
+    "spacy>=3.8.7",
     "tqdm==4.66.3",
     "undetected-chromedriver==3.5.4",
     "vadersentiment>=3.3.2",
@@ -49,7 +50,7 @@ docstring-code-format = false
 docstring-code-line-length = "dynamic"
 
 [tool.ruff.lint.isort]
-known-first-party = ["Network", "Places", "PlacesAPI", "Scraper", "Sentiments", "Utils", "Pipeline"]
+known-first-party = ["modules", "Network", "Places", "PlacesAPI", "Scraper", "Sentiments", "Shared", "Pipeline"]
 known-third-party = ["requests", "numpy", "dacite"]
 combine-as-imports = true
 force-sort-within-sections = true

@@ -16,3 +16,4 @@ pandas
 dacite
 networkx[default]
 vaderSentiment
+spacy

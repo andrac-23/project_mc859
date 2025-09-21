@@ -1,7 +1,13 @@
 import spacy
+from spacy.util import is_package
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-nlp = spacy.load('en_core_web_sm')
+model = 'en_core_web_sm'
+
+if not is_package(model):
+    spacy.cli.download(model)
+
+nlp = spacy.load(model)
 
 
 def extract_sentences_from_text(text):

@@ -14,7 +14,7 @@ import Places.main as places
 import PlacesAPI.main as places_api
 import Scraper.main as scraper
 import Sentiments.main as sentiments
-import Utils.main as utils
+import Shared.main as utils
 
 
 # Define the Attraction dataclass
