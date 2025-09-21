@@ -202,3 +202,14 @@ def get_places(top_countries=10, top_cities=50) -> Places:
             json.dump(places, f, cls=utils.EnhancedJSONEncoder, indent=2)
 
     return places
+
+
+def reset_places_data():
+    logging.info('Resetting existing Places data...')
+
+    if os.path.exists(SAVED_CSV_PATH):
+        os.remove(SAVED_CSV_PATH)
+    if os.path.exists(SAVED_JSON_PATH):
+        os.remove(SAVED_JSON_PATH)
+
+    logging.info('Places data reset complete. ✅')

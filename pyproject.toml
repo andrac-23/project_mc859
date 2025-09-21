@@ -49,7 +49,7 @@ docstring-code-format = false
 docstring-code-line-length = "dynamic"
 
 [tool.ruff.lint.isort]
-known-first-party = ["Network", "Places", "PlacesAPI", "Scraper", "Sentiments", "Utils"]
+known-first-party = ["Network", "Places", "PlacesAPI", "Scraper", "Sentiments", "Utils", "Pipeline"]
 known-third-party = ["requests", "numpy", "dacite"]
 combine-as-imports = true
 force-sort-within-sections = true

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import json
 import logging
 import os
+import shutil
 import signal
 import sys
 from typing import List, Literal
@@ -97,6 +98,17 @@ def get_pipeline_progress() -> PipelineProgress:
 def save_pipeline_progress(progress: PipelineProgress):
     with open(PIPELINE_PROGRESS_PATH, 'w') as f:
         json.dump(progress, f, cls=utils.EnhancedJSONEncoder, indent=2)
+
+
+def reset_pipeline_data():
+    logging.info('Resetting existing Pipeline data...')
+
+    if os.path.exists(PIPELINE_PROGRESS_PATH):
+        os.remove(PIPELINE_PROGRESS_PATH)
+    if os.path.exists('scraped_reviews'):
+        shutil.rmtree('scraped_reviews')
+
+    logging.info('Pipeline data reset complete. ✅')
 
 
 def exec_net_build_pipeline():

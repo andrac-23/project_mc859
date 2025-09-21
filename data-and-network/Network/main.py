@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import logging
 import os
 from typing import Dict
 
@@ -105,3 +106,17 @@ def save_adjectives(path: str):
 
 def save_graph():
     nx.write_gml(AttractionSentimentNet, EXISTING_GRAPH_PATH)
+
+
+def reset_network_data():
+    logging.info('Resetting existing Network data...')
+
+    global AttractionSentimentNet, adjectives_dict
+    AttractionSentimentNet = nx.Graph()
+    adjectives_dict = {}
+    if os.path.exists(EXISTING_GRAPH_PATH):
+        os.remove(EXISTING_GRAPH_PATH)
+    if os.path.exists(EXISTING_EMOTIONS_PATH):
+        os.remove(EXISTING_EMOTIONS_PATH)
+
+    logging.info('Network data reset complete. ✅')

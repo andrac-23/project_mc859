@@ -22,6 +22,9 @@ dist/
 # VSCode
 .vscode/
 
+# Sensitive files
+.env
+
 # uv lock file is needed, don’t ignore uv.lock
 # pyproject.toml is needed, don’t ignore it
 
