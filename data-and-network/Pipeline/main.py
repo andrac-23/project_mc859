@@ -290,6 +290,9 @@ def exec_net_build_pipeline():
                                         'adjective',
                                         sentiment_score['compound'],
                                         review.rating,
+                                        associated_emotion=sentiments.classify_adjective_to_emotions_gemini(
+                                            adjective
+                                        ),
                                     )
 
                         attraction_progress.progress = '✅'

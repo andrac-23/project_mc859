@@ -17,3 +17,4 @@ dacite
 networkx[default]
 vaderSentiment
 spacy
+google-cloud-aiplatform

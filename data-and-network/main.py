@@ -37,6 +37,7 @@ def reset_data_and_network():
     network.reset_network_data()
     pipeline.reset_pipeline_data()
     places_api.clearCachedAttractions()
+    # sentiments.clear_adjective_sentiment_cache()
 
     logger.info('All data reset complete. ✅')
 

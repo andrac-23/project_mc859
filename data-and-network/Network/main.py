@@ -8,6 +8,7 @@ from dacite import from_dict
 import networkx as nx
 
 from PlacesAPI.main import Place
+import Sentiments.main as Sentiments
 import Shared.main as utils
 
 logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
@@ -25,6 +26,7 @@ class Emotion:
     id: str
     name: str
     type: str
+    associated_emotion: str = None
 
 
 MODULE_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -72,6 +74,7 @@ def add_edge(
     emotion_type: str,
     sentiment_score: float,
     review_rating: float,
+    associated_emotion: str = None,
 ):
     if not AttractionSentimentNet.has_node(attraction.id):
         AttractionSentimentNet.add_node(
@@ -88,6 +91,7 @@ def add_edge(
             id=f'{emotion_type}_{len(emotions_dict) + 1}',
             name=emotion_name.lower(),
             type=emotion_type,
+            associated_emotion=associated_emotion,
         )
         emotions_dict[emotion.name] = emotion
 
@@ -96,6 +100,7 @@ def add_edge(
             emotion.id,
             type=emotion.type,
             name=emotion.name,
+            associated_emotion=emotion.associated_emotion,
         )
 
     edge_weight = calculate_adequacy_weight(sentiment_score, review_rating)
@@ -126,6 +131,7 @@ def save_network_info():
 
 
 def save_emotions():
+    Sentiments.save_adjective_sentiment_cache()
     with open(EXISTING_EMOTIONS_PATH, 'w', encoding='utf-8') as f:
         emotions_list = [
             json.dumps(

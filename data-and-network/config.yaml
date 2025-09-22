@@ -5,7 +5,7 @@ url: "https://maps.google.com/your_url"
 
 # Scraper settings
 headless: true # Run Chrome in headless mode
-sort_by: "newest" # Options: "newest", "highest", "lowest", "relevance"
+sort_by: "relevance" # Options: "newest", "highest", "lowest", "relevance"
 stop_on_match: false # Stop when first already-seen review is encountered
 overwrite_existing: true # Whether to overwrite existing reviews or append
 

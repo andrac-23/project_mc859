@@ -1575,9 +1575,9 @@ class GoogleReviewsScraper:
                         driver.execute_script('window.scrollBy(0, 300);')
 
                     # Dynamic sleep: sleep less when processing many reviews
-                    # sleep_time = 0.7 if len(fresh_cards) > 5 else 1.0
-                    # time.sleep(sleep_time)
-                    # Replace original sleep_time logic with rate limiter
+                    sleep_time = 0.7 if len(fresh_cards) > 5 else 1.0
+                    time.sleep(sleep_time)
+
                     try:
                         logger.info(
                             f'Processed {len(fresh_cards)} new reviews, applying rate limit sleep...'
