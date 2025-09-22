@@ -110,8 +110,10 @@ def getCachedAttractions(location: Location, maximum_results: int) -> List[Place
     )
     if os.path.exists(cache_file):
         with open(cache_file, 'r', encoding='utf-8') as f:
-            places_json = f.read()
-            places = from_dict(data_class=List[Place], data=places_json)
+            data = json.load(f)
+            places = [
+                from_dict(data_class=Place, data=place_json) for place_json in data
+            ]
             logger.info(
                 f'Loaded {maximum_results} cached Places API attractions for location {location.name} from previous run.'
             )
@@ -119,12 +121,14 @@ def getCachedAttractions(location: Location, maximum_results: int) -> List[Place
     return []
 
 
-def saveCachedAttractions(location: Location, places: List[Place]):
+def saveCachedAttractions(
+    location: Location, places: List[Place], maximum_results: int
+):
     if not os.path.exists(CACHED_RESULTS_DIR):
         os.makedirs(CACHED_RESULTS_DIR)
     cache_file = os.path.join(
         CACHED_RESULTS_DIR,
-        f'attractions_{utils.make_string_filesystem_safe(location.name)}.json',
+        f'attractions_{maximum_results}_{utils.make_string_filesystem_safe(location.name)}.json',
     )
     with open(cache_file, 'w', encoding='utf-8') as f:
         places_api_results = [
@@ -133,7 +137,7 @@ def saveCachedAttractions(location: Location, places: List[Place]):
             )
             for place in places
         ]
-        f.writelines(places_api_results)
+        f.write('[\n' + ',\n'.join(places_api_results) + '\n]')
         logger.info(
             f'Saved cached Places API attractions for location {location.name}.'
         )
@@ -214,7 +218,7 @@ def getNearbyAttractions(location: Location, maximum_results: int = 5) -> List[P
 
     # Return max of N
     nearby_attractions = unique_attractions[:maximum_results]
-    saveCachedAttractions(location, nearby_attractions)
+    saveCachedAttractions(location, nearby_attractions, maximum_results)
 
     return nearby_attractions
 

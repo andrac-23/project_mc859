@@ -15,7 +15,7 @@ logger.propagate = False
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 
-file_handler = logging.FileHandler(LOGGING_PATH, mode='w', encoding='utf-8')
+file_handler = logging.FileHandler(LOGGING_PATH, mode='a', encoding='utf-8')
 file_handler.setLevel(logging.INFO)
 
 formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')

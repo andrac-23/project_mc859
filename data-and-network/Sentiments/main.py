@@ -25,6 +25,8 @@ MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 
 CACHED_GEMINI_RESULTS_PATH = os.path.join(MODULE_DIR, 'cached_results.json')
 
+new_responses_count = 0
+
 adjective_to_sentiment_map = {}
 if (
     os.path.exists(CACHED_GEMINI_RESULTS_PATH)
@@ -116,6 +118,8 @@ def generate_with_retry(prompt: str, max_retries: int = 12, base_delay: float = 
 
 
 def classify_adjective_to_emotions_gemini(adjective: str):
+    global new_responses_count
+
     sanitized_adjective = adjective.strip().lower()
 
     if sanitized_adjective in adjective_to_sentiment_map:
@@ -160,6 +164,12 @@ def classify_adjective_to_emotions_gemini(adjective: str):
     response = generate_with_retry(prompt)
 
     adjective_to_sentiment_map[sanitized_adjective] = response.text.strip()
+    new_responses_count += 1
+
+    # Save cache every 25 new responses to avoid data loss
+    if new_responses_count >= 25:
+        save_adjective_sentiment_cache()
+        new_responses_count = 0
 
     return response.text
 

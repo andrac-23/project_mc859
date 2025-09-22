@@ -32,9 +32,10 @@ class Emotion:
 MODULE_PATH = os.path.dirname(os.path.realpath(__file__))
 
 EXISTING_GRAPH_PATH = os.path.join(MODULE_PATH, 'graph.gml')
+GEXT_GRAPH_PATH = os.path.join(MODULE_PATH, 'graph.gexf')
 EXISTING_EMOTIONS_PATH = os.path.join(MODULE_PATH, 'emotions.json')
 
-NETWORK_INFO_PATH = os.path.join(MODULE_PATH, '..', 'network_info.json')
+NETWORK_INFO_PATH = os.path.join(MODULE_PATH, '..', '..', 'network_info.json')
 
 AttractionSentimentNet = nx.Graph()
 emotions_dict: Dict[str, Emotion] = {}
@@ -145,6 +146,7 @@ def save_emotions():
 def save_graph():
     save_emotions()
     nx.write_gml(AttractionSentimentNet, EXISTING_GRAPH_PATH)
+    nx.write_gexf(AttractionSentimentNet, GEXT_GRAPH_PATH)
 
 
 def reset_network_data():

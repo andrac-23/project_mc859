@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+import datetime
 import json
 import logging
 import os
 import shutil
 import signal
 import sys
+import time
 from typing import List, Literal
 
 from dacite import from_dict
@@ -17,11 +19,18 @@ import Sentiments.main as sentiments
 import Shared.main as utils
 
 
+@dataclass
+class ReviewProgress:
+    id: str
+    progress: Literal['✅', '❌']
+
+
 # Define the Attraction dataclass
 @dataclass
 class AttractionProgress:
     id: str
     name: str
+    reviews: List[ReviewProgress]
     progress: Literal['✅', '❌']
 
 
@@ -148,7 +157,7 @@ def get_pipeline_progress(places_info: places.Places) -> PipelineProgress:
     return pipeline_progress
 
 
-def save_pipeline_progress(progress: PipelineProgress):
+def save_pipeline_progress(progress: PipelineProgress, start_time: float = None):
     logger.info('Saving progress before exiting...')
     # Save pipeline
     with open(PIPELINE_PROGRESS_PATH, 'w', encoding='utf-8') as f:
@@ -158,6 +167,8 @@ def save_pipeline_progress(progress: PipelineProgress):
     # Save network
     network.save_graph()
     network.save_network_info()
+
+    logger.info('Elapsed time: {:.2f} seconds'.format(time.time() - start_time))
 
 
 def reset_pipeline_data():
@@ -173,6 +184,9 @@ def reset_pipeline_data():
 
 def exec_net_build_pipeline():
     global interrupted
+
+    logger.info(f'\nStarting Pipeline execution... {datetime.datetime.now()}')
+    start_time = time.time()
 
     places_info = places.get_places()
 
@@ -220,7 +234,7 @@ def exec_net_build_pipeline():
                         name=city.name, latitude=city.latitude, longitude=city.longitude
                     )
                     city_attractions = places_api.getNearbyAttractions(
-                        places_api_city_info
+                        places_api_city_info, maximum_results=15
                     )
                     logger.info(
                         f'Found {len(city_attractions)} attractions for city: {city.name}: {[a.displayName["text"] for a in city_attractions]}'
@@ -240,6 +254,7 @@ def exec_net_build_pipeline():
                                 id=attraction.id,
                                 name=attraction.displayName['text'],
                                 progress='❌',
+                                reviews=[],
                             )
                             city_progress.attractions.append(attraction_progress)
                         if attraction_progress and attraction_progress.progress == '✅':
@@ -268,11 +283,30 @@ def exec_net_build_pipeline():
                         )
 
                         for review in reviews:
+                            review_progress = next(
+                                (
+                                    r
+                                    for r in attraction_progress.reviews
+                                    if r.id == review.review_id
+                                ),
+                                None,
+                            )
+                            if not review_progress:
+                                review_progress = ReviewProgress(
+                                    id=review.review_id, progress='❌'
+                                )
+                                attraction_progress.reviews.append(review_progress)
+                            if review_progress and review_progress.progress == '✅':
+                                logger.info(
+                                    f'Skipping review {review.review_id} for attraction {attraction.displayName["text"]} as it is already completed.'
+                                )
+                                continue
+
                             logger.info(
                                 f'Processing review {review.review_id} for attraction {attraction.displayName["text"]}'
                             )
                             review_sentences = sentiments.extract_sentences_from_text(
-                                review.description['en']
+                                review.description.get('en', '')
                             )
 
                             for sentence in review_sentences:
@@ -295,6 +329,8 @@ def exec_net_build_pipeline():
                                         ),
                                     )
 
+                            review_progress.progress = '✅'
+
                         attraction_progress.progress = '✅'
                         logger.info(
                             f'Finished processing attraction {attraction.displayName["text"]} with {len(reviews)} reviews.'
@@ -307,6 +343,7 @@ def exec_net_build_pipeline():
                     logger.info(f'Finished processing city {city.name}.')
 
                 country_progress.progress = '✅'
+                network.save_network_info()
                 logger.info(f'Finished processing country {country.name}.')
 
             continent_progress.progress = '✅'
@@ -318,7 +355,7 @@ def exec_net_build_pipeline():
         logger.info('Pipeline interrupted. Saving and exiting gracefully.')
 
     finally:
-        save_pipeline_progress(pipeline_progress)
+        save_pipeline_progress(pipeline_progress, start_time)
 
     sys.exit(0)
     return

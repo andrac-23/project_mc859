@@ -469,6 +469,10 @@ class GoogleReviewsScraper:
         Uses multiple detection approaches for maximum reliability.
         """
         try:
+            # Strategy 0: Basic check (English only):
+            if tab.text == 'About':
+                return False
+
             # Strategy 1: Data attribute detection (most reliable across languages)
             tab_index = tab.get_attribute('data-tab-index')
             if tab_index == '1' or tab_index == '2' or tab_index == 'reviews':
@@ -1384,14 +1388,12 @@ class GoogleReviewsScraper:
             logger.debug(f'Error checking menu state: {e}')
             return False
 
-    def _rate_limit_sleep(self, newly_processed: int):
+    def _rate_limit_sleep(self, docs_len: int):
         """
         Apply adaptive sleep + periodic pauses + random jitter.
         """
-        self._processed_total += newly_processed
-
         # Hard cap (daily/session)
-        if self.daily_max_reviews and self._processed_total >= self.daily_max_reviews:
+        if self.daily_max_reviews and docs_len >= self.daily_max_reviews:
             logger.info(
                 f'Daily/session max ({self.daily_max_reviews}) reached – stopping early.'
             )
@@ -1579,10 +1581,11 @@ class GoogleReviewsScraper:
                     time.sleep(sleep_time)
 
                     try:
+                        docs_len = len(docs)
                         logger.info(
-                            f'Processed {len(fresh_cards)} new reviews, applying rate limit sleep...'
+                            f'Processed {docs_len} total reviews, applying rate limit sleep...'
                         )
-                        self._rate_limit_sleep(len(fresh_cards))
+                        self._rate_limit_sleep(docs_len)
                     except StopIteration:
                         break
 
