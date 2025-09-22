@@ -1,13 +1,17 @@
 # Get places API key from .env
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import json
 import logging
 import os
 import random
+import shutil
 from typing import Dict, List, Literal
 
 from dacite import from_dict
 import requests
+
+import Shared.main as utils
 
 logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 MAX_THREADS = 4
@@ -30,6 +34,7 @@ class NearbySearchResponse:
 
 @dataclass
 class Location:
+    name: str
     latitude: float
     longitude: float
 
@@ -37,6 +42,10 @@ class Location:
 PLACES_API_KEY = os.getenv('PLACES_API_KEY')
 if not PLACES_API_KEY:
     raise ValueError('PLACES_API_KEY not found in environment variables')
+
+MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
+
+CACHED_RESULTS_DIR = os.path.join(MODULE_DIR, 'cached_results')
 
 Search_Nearby_Constants = {
     'RESPONSE_FIELDS': [
@@ -94,6 +103,48 @@ Considered_Place_Types_Filters = {
 }
 
 
+def getCachedAttractions(location: Location, maximum_results: int) -> List[Place]:
+    cache_file = os.path.join(
+        CACHED_RESULTS_DIR,
+        f'attractions_{maximum_results}_{utils.make_string_filesystem_safe(location.name)}.json',
+    )
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            places_json = f.read()
+            places = from_dict(data_class=List[Place], data=places_json)
+            logger.info(
+                f'Loaded {maximum_results} cached Places API attractions for location {location.name} from previous run.'
+            )
+            return places
+    return []
+
+
+def saveCachedAttractions(location: Location, places: List[Place]):
+    if not os.path.exists(CACHED_RESULTS_DIR):
+        os.makedirs(CACHED_RESULTS_DIR)
+    cache_file = os.path.join(
+        CACHED_RESULTS_DIR,
+        f'attractions_{utils.make_string_filesystem_safe(location.name)}.json',
+    )
+    with open(cache_file, 'w', encoding='utf-8') as f:
+        places_api_results = [
+            json.dumps(
+                place, ensure_ascii=False, cls=utils.EnhancedJSONEncoder, indent=2
+            )
+            for place in places
+        ]
+        f.writelines(places_api_results)
+        logger.info(
+            f'Saved cached Places API attractions for location {location.name}.'
+        )
+
+
+def clearCachedAttractions():
+    if os.path.exists(CACHED_RESULTS_DIR):
+        shutil.rmtree(CACHED_RESULTS_DIR)
+    logger.info('Cleared all cached Places API attractions. ✅')
+
+
 def getNearbyAttractionsFromType(
     location: Location, place_types: List[str]
 ) -> NearbySearchResponse:
@@ -133,7 +184,11 @@ def getNearbyAttractionsFromType(
 
 
 def getNearbyAttractions(location: Location, maximum_results: int = 5) -> List[Place]:
-    responses: List[NearbySearchResponse] = []
+    responses: List[NearbySearchResponse] = getCachedAttractions(
+        location, maximum_results
+    )
+    if responses:
+        return responses
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         futures = [
             executor.submit(getNearbyAttractionsFromType, location, place_types)
@@ -154,10 +209,14 @@ def getNearbyAttractions(location: Location, maximum_results: int = 5) -> List[P
     unique_attractions = list(
         {attraction.id: attraction for attraction in attractions}.values()
     )
-    # Shuffle and return max of N
+    # Shuffle
     random.shuffle(unique_attractions)
 
-    return unique_attractions[:maximum_results]
+    # Return max of N
+    nearby_attractions = unique_attractions[:maximum_results]
+    saveCachedAttractions(location, nearby_attractions)
+
+    return nearby_attractions
 
 
 if __name__ == '__main__':

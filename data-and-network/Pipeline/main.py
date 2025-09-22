@@ -58,6 +58,11 @@ logger = logging.getLogger(os.getenv('DATA_NETWORK_LOGGER', 'data-and-network'))
 
 MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
 PIPELINE_PROGRESS_PATH = os.path.join(MODULE_DIR, 'pipeline_progress.json')
+SCRAPED_REVIEWS_PATH = os.path.join(
+    MODULE_DIR,
+    '..',
+    'scraped_reviews',
+)
 
 interrupted = False
 interrupted_count = 0
@@ -90,9 +95,7 @@ def generate_reviews_directory(
     safe_attraction = utils.make_string_filesystem_safe(attraction)
 
     dir_path = os.path.join(
-        MODULE_DIR,
-        '..',
-        'scraped_reviews',
+        SCRAPED_REVIEWS_PATH,
         safe_continent,
         safe_country,
         safe_city,
@@ -162,8 +165,8 @@ def reset_pipeline_data():
 
     if os.path.exists(PIPELINE_PROGRESS_PATH):
         os.remove(PIPELINE_PROGRESS_PATH)
-    if os.path.exists('scraped_reviews'):
-        shutil.rmtree('scraped_reviews')
+    if os.path.exists(SCRAPED_REVIEWS_PATH):
+        shutil.rmtree(SCRAPED_REVIEWS_PATH)
 
     logger.info('Pipeline data reset complete. ✅')
 
@@ -214,7 +217,7 @@ def exec_net_build_pipeline():
                     )
 
                     places_api_city_info = places_api.Location(
-                        latitude=city.latitude, longitude=city.longitude
+                        name=city.name, latitude=city.latitude, longitude=city.longitude
                     )
                     city_attractions = places_api.getNearbyAttractions(
                         places_api_city_info

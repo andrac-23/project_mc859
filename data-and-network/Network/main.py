@@ -151,5 +151,7 @@ def reset_network_data():
         os.remove(EXISTING_GRAPH_PATH)
     if os.path.exists(EXISTING_EMOTIONS_PATH):
         os.remove(EXISTING_EMOTIONS_PATH)
+    if os.path.exists(NETWORK_INFO_PATH):
+        os.remove(NETWORK_INFO_PATH)
 
     logger.info('Network data reset complete. ✅')

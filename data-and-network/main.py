@@ -29,12 +29,14 @@ if not logger.handlers:
 import Network.main as network  # noqa: E402
 import Pipeline.main as pipeline  # noqa: E402
 import Places.main as places  # noqa: E402
+import PlacesAPI.main as places_api  # noqa: E402
 
 
 def reset_data_and_network():
     places.reset_places_data()
     network.reset_network_data()
     pipeline.reset_pipeline_data()
+    places_api.clearCachedAttractions()
 
     logger.info('All data reset complete. ✅')
 
