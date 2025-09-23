@@ -257,7 +257,12 @@ def exec_net_build_pipeline():
                                 reviews=[],
                             )
                             city_progress.attractions.append(attraction_progress)
-                        if attraction_progress and attraction_progress.progress == '✅':
+
+                        if (
+                            attraction_progress
+                            and attraction_progress.progress == '✅'
+                            and len(attraction_progress.reviews) > 0
+                        ):
                             logger.info(
                                 f'Skipping attraction {attraction.displayName["text"]} as it is already completed.'
                             )

@@ -470,7 +470,7 @@ class GoogleReviewsScraper:
         """
         try:
             # Strategy 0: Basic check (English only):
-            if tab.text == 'About':
+            if tab.text == 'About' or tab.text == 'Tickets':
                 return False
 
             # Strategy 1: Data attribute detection (most reliable across languages)
@@ -557,6 +557,7 @@ class GoogleReviewsScraper:
         # Define different selectors to try in order of reliability
         tab_selectors = [
             # Direct tab selectors
+            '[data-tab-index="3"]',  # Reviews tab (newest index)
             '[data-tab-index="2"]',  # Reviews tab (new index)
             '[data-tab-index="1"]',  # Menu tab (old index, fallback)
             '[role="tab"][data-tab-index]',  # Any tab with index
