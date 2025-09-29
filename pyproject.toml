@@ -10,6 +10,7 @@ dependencies = [
     "boto3==1.35.1",
     "certifi==2024.7.4",
     "dacite>=1.9.2",
+    "geopandas>=1.1.1",
     "google-cloud-aiplatform>=1.115.0",
     "googletrans==4.0.2",
     "networkx[default]>=3.5",

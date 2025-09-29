@@ -1,0 +1,62 @@
+{
+  "num_nodes": 10299,
+  "num_edges": 198786,
+  "avg_degree": 38.602971162248764,
+  "num_components": 1,
+  "avg_attraction_degree": 154.69727626459144,
+  "avg_emotion_degree": 22.053028622143334,
+  "highest_degree_attraction": {
+    "type": "attraction",
+    "name": "The Star Brisbane",
+    "rating": 3.9,
+    "location": {
+      "latitude": -27.4738528,
+      "longitude": 153.0250142,
+      "continent": "Oceania",
+      "country": "Australia",
+      "city": "Brisbane"
+    },
+    "attraction_types": [
+      "resort_hotel",
+      "hotel",
+      "casino",
+      "lodging",
+      "point_of_interest",
+      "establishment"
+    ],
+    "degree": 403
+  },
+  "highest_degree_emotion": {
+    "type": "adjective",
+    "name": "good",
+    "associated_emotion": "Happiness",
+    "degree": 1216
+  },
+  "highest_weight_edge": {
+    "attraction": {
+      "type": "adjective",
+      "name": "beautiful",
+      "associated_emotion": "Wonder"
+    },
+    "emotion": {
+      "type": "attraction",
+      "name": "Mamsha Ahl Masr",
+      "rating": 4.5,
+      "location": {
+        "latitude": 30.045751699999997,
+        "longitude": 31.231275,
+        "continent": "Africa",
+        "country": "Egypt",
+        "city": "Giza"
+      },
+      "attraction_types": [
+        "garden",
+        "park",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    "weight": 432,
+    "count": 98
+  }
+}

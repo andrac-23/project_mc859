@@ -6,9 +6,12 @@ Google‑Maps review scraper with MongoDB integration
 Main entry point for the scraper.
 """
 
+import json
 import logging
 import os
 from typing import List
+
+from dacite import from_dict
 
 from modules.cli import parse_arguments
 from modules.config import load_config
@@ -82,6 +85,20 @@ def scrape_google_maps(extraArgs: dict) -> List[TransformedReview]:
     if not loggedConfig:
         logger.info('Starting Google Maps scraper with config: %s', config)
         loggedConfig = True
+
+    # Avoid re-processing if already scraped. TODO: can be a new config
+    if (
+        config['json_path']
+        and os.path.exists(config['json_path'])
+        and os.path.getsize(config['json_path']) > 0
+    ):
+        logger.info(
+            'Data file already exists and overwrite is disabled. Skipping scraping.'
+        )
+        review_docs = json.load(open(config['json_path'], 'r', encoding='utf-8'))
+        return [
+            from_dict(data_class=TransformedReview, data=doc) for doc in review_docs
+        ]
 
     scraper = GoogleReviewsScraper(config)
     reviews = scraper.scrape()

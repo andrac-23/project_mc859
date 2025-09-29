@@ -182,6 +182,22 @@ def reset_pipeline_data():
     logger.info('Pipeline data reset complete. ✅')
 
 
+def mark_empty_attractions(pipeline_progress: PipelineProgress):
+    logger.info('Identifying attractions with no reviews...')
+    for continent in pipeline_progress.continents:
+        for country in continent.countries:
+            for city in country.cities:
+                for attraction in city.attractions:
+                    if len(attraction.reviews) == 0:
+                        logger.info(
+                            f'Attraction {attraction.name} in city {city.name}, country {country.name}, continent {continent.name} has no reviews. Marking as not started.'
+                        )
+                        attraction.progress = '❌'
+                        city.progress = '❌'
+                        country.progress = '❌'
+                        continent.progress = '❌'
+
+
 def exec_net_build_pipeline():
     global interrupted
 
@@ -191,6 +207,7 @@ def exec_net_build_pipeline():
     places_info = places.get_places()
 
     pipeline_progress = get_pipeline_progress(places_info)
+    mark_empty_attractions(pipeline_progress)
 
     try:
         for continent in places_info.continents:
@@ -214,6 +231,11 @@ def exec_net_build_pipeline():
                         f'Skipping country {country.name} as it is already completed.'
                     )
                     continue
+                if country_progress is None:
+                    country_progress = CountryProgress(
+                        name=country.name, progress='❌', cities=[]
+                    )
+                    continent_progress.countries.append(country_progress)
 
                 for city in country.cities:
                     city_progress = next(
@@ -225,6 +247,11 @@ def exec_net_build_pipeline():
                             f'Skipping city {city.name} as it is already completed.'
                         )
                         continue
+                    if city_progress is None:
+                        city_progress = CityProgress(
+                            name=city.name, progress='❌', attractions=[]
+                        )
+                        country_progress.cities.append(city_progress)
 
                     logger.info(
                         f'Processing city: {city.name} in country: {country.name}, continent: {continent.name}'
@@ -332,6 +359,10 @@ def exec_net_build_pipeline():
                                         associated_emotion=sentiments.classify_adjective_to_emotions_gemini(
                                             adjective
                                         ),
+                                        review_date=review.review_date,
+                                        continent=continent.name,
+                                        country=country.name,
+                                        city=city.name,
                                     )
 
                             review_progress.progress = '✅'

@@ -1,6 +1,6 @@
 # Get places API key from .env
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import logging
 import os
@@ -25,6 +25,7 @@ class Place:
     googleMapsUri: str
     userRatingCount: int
     displayName: Dict[Literal['text', 'languageCode'], str]
+    types: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -55,6 +56,7 @@ Search_Nearby_Constants = {
         'places.location',
         'places.userRatingCount',
         'places.rating',
+        'places.types',
     ],
     'MAX_RESULTS': 5,
     'RANK_PREFERENCE': 'popularity',
@@ -224,7 +226,6 @@ def getNearbyAttractions(location: Location, maximum_results: int = 5) -> List[P
 
 
 if __name__ == '__main__':
-    # Example usage
     location = Location(
         latitude=-22.90556, longitude=-47.06083
     )  # Example: Campinas, Brazil

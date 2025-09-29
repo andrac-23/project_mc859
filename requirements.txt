@@ -18,3 +18,4 @@ networkx[default]
 vaderSentiment
 spacy
 google-cloud-aiplatform
+geopandas

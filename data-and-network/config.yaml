@@ -57,11 +57,5 @@ use_s3: false # Whether to upload images to S3
 #   source: "Google Maps"
 #   location: "Bangkok, Thailand"
 
-# Rate limiting
-min_scroll_delay: 0.9
-max_scroll_delay: 1.7
-pause_every_n_reviews: 150
-long_pause_seconds: 75
-daily_max_reviews: 100
-jitter_probability: 0.12
-jitter_extra_seconds: 2.5
+# Session limit settings
+max_reviews: 100

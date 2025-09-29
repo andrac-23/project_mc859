@@ -104,17 +104,25 @@ continents_map = {
 }
 
 default_per_continent_quota = {
-    'AF': 2,
-    'AS': 2,
-    'EU': 6,
-    'NA': 2,
-    'OC': 2,
-    'SA': 3,
+    'AF': 4,
+    'AS': 4,
+    'EU': 10,
+    'NA': 4,
+    'OC': 3,
+    'SA': 5,
 }
 
+# Filtering these to get countries with more well-known attractions
 default_filtered_countries = [
-    'PG',  # Papua New Guinea
-    'ET',  # Ethiopia
+    'PK',  # Pakistan
+    'BD',  # Bangladesh
+    'ID',  # Indonesia
+    'PL',  # Poland
+    'RO',  # Romania
+    'BE',  # Belgium
+    'GT',  # Guatemala
+    'PH',  # Philippines
+    'VN',  # Vietnam
 ]
 
 default_included_cities = ['Campinas', 'Recife', 'Manaus', 'Curitiba']

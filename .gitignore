@@ -26,6 +26,11 @@ dist/
 .env
 *.log
 
+# MacOS
+.DS_Store
+._.DS_Store
+._*
+
 # uv lock file is needed, don’t ignore uv.lock
 # pyproject.toml is needed, don’t ignore it
 
@@ -37,5 +42,7 @@ dist/
 *.gext
 *.ids
 
+# Project-specific data files
+!data-and-network/attraction-sentiment-net*
 data-and-network/Places/geoNames/
 data-and-network/Scraper/google_reviews.*

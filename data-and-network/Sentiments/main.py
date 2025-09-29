@@ -87,7 +87,9 @@ def generate_with_retry(prompt: str, max_retries: int = 12, base_delay: float = 
     """
     for attempt in range(max_retries):
         try:
-            return ai_model.generate_content(prompt)
+            return ai_model.generate_content(
+                prompt, generation_config=({'temperature': 0.71})
+            )
         except (
             gax_exceptions.ResourceExhausted,
             gax_exceptions.TooManyRequests,
@@ -117,16 +119,51 @@ def generate_with_retry(prompt: str, max_retries: int = 12, base_delay: float = 
     raise RuntimeError('Exceeded max retries for Vertex AI generate_content')
 
 
-def classify_adjective_to_emotions_gemini(adjective: str):
+# Constant to easily access all valid emotions
+VALID_EMOTIONS = [
+    'Happiness',
+    'Joy',
+    'Excitement',
+    'Wonder',
+    'Peace',
+    'Relaxation',
+    'Satisfaction',
+    'Love',
+    'Pride',
+    'Gratitude',
+    'Trust',
+    'Inspiration',
+    'Curiosity',
+    'Anticipation',
+    'Nostalgia',
+    'Surprise',
+    'Loneliness',
+    'Boredom',
+    'Confusion',
+    'Sadness',
+    'Disappointment',
+    'Frustration',
+    'Annoyance',
+    'Anger',
+    'Fear',
+    'Anxiety',
+    'Stress',
+    'Disgust',
+    'Regret',
+    'Insecurity',
+]
+
+
+def classify_adjective_to_emotions_gemini(adjective: str, skip_cache: bool = False):
     global new_responses_count
 
     sanitized_adjective = adjective.strip().lower()
 
-    if sanitized_adjective in adjective_to_sentiment_map:
+    if sanitized_adjective in adjective_to_sentiment_map and not skip_cache:
         return adjective_to_sentiment_map[sanitized_adjective]
 
     prompt = f"""
-    Classify the adjective {sanitized_adjective} into one of the emotions:
+    Classify the following word that has been used as an adjective, "{sanitized_adjective}", into one of the emotions:
     1. Happiness
     2. Joy
     3. Excitement
@@ -158,7 +195,7 @@ def classify_adjective_to_emotions_gemini(adjective: str):
     29. Regret (waste of time/money)
     30. Insecurity (unsafe, unwelcoming)
 
-    You must choose only one emotion that best represents the adjective. Reply with only the emotion name, ignoring any other text.
+    You must choose only one emotion that best represents it. Reply with **ONLY** the emotion name, ignoring any other text.
     """
 
     response = generate_with_retry(prompt)

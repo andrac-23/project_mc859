@@ -335,17 +335,7 @@ class GoogleReviewsScraper:
         self.json_storage = JSONStorage(config)
         self.backup_to_json = config.get('backup_to_json', True)
         self.overwrite_existing = config.get('overwrite_existing', False)
-
-        # Scraping parameters
-        self.min_scroll_delay = config.get('min_scroll_delay', 0.9)
-        self.max_scroll_delay = config.get('max_scroll_delay', 1.7)
-        self.pause_every_n = config.get('pause_every_n_reviews', 0)
-        self.long_pause_seconds = config.get('long_pause_seconds', 0)
-        self.daily_max_reviews = config.get('daily_max_reviews', 5)
-        self.jitter_probability = config.get('jitter_probability', 0.1)
-        self.jitter_extra_seconds = config.get('jitter_extra_seconds', 2.0)
-
-        self._processed_total = 0  # Total reviews processed in current session
+        self.max_reviews = config.get('max_reviews', 100)
 
     def setup_driver(self, headless: bool) -> Chrome:
         """
@@ -1389,37 +1379,15 @@ class GoogleReviewsScraper:
             logger.debug(f'Error checking menu state: {e}')
             return False
 
-    def _rate_limit_sleep(self, docs_len: int):
+    def check_review_limit(self, docs_len: int):
         """
-        Apply adaptive sleep + periodic pauses + random jitter.
+        Apply review number limit
         """
-        # Hard cap (daily/session)
-        if self.daily_max_reviews and docs_len >= self.daily_max_reviews:
-            logger.info(
-                f'Daily/session max ({self.daily_max_reviews}) reached – stopping early.'
-            )
+        # Hard cap (session)
+        if self.max_reviews and docs_len >= self.max_reviews:
+            logger.info(f'Session max ({self.max_reviews}) reached – stopping early.')
             raise StopIteration
         return
-
-        # Base randomized delay per scroll cycle
-        base_delay = random.uniform(self.min_scroll_delay, self.max_scroll_delay)
-
-        # Add occasional jitter
-        if random.random() < self.jitter_probability:
-            base_delay += random.uniform(0.5, self.jitter_extra_seconds)
-
-        time.sleep(base_delay)
-
-        # Periodic longer pause
-        if (
-            self.pause_every_n
-            and self._processed_total > 0
-            and self._processed_total % self.pause_every_n == 0
-        ):
-            logger.info(
-                f'Pause checkpoint at {self._processed_total} reviews – sleeping {self.long_pause_seconds:.1f}s'
-            )
-            time.sleep(self.long_pause_seconds)
 
     def scrape(self):
         """Main scraper method"""
@@ -1586,7 +1554,7 @@ class GoogleReviewsScraper:
                         logger.info(
                             f'Processed {docs_len} total reviews, applying rate limit sleep...'
                         )
-                        self._rate_limit_sleep(docs_len)
+                        self.check_review_limit(docs_len)
                     except StopIteration:
                         break
 
